@@ -6,6 +6,14 @@
 # =============================================================================
 set -euo pipefail
 
+ROTATE_S3=false
+if [[ "${1:-}" == "--rotate-s3" ]]; then
+  ROTATE_S3=true
+elif [[ $# -gt 0 ]]; then
+  echo "Usage: $0 [--rotate-s3]" >&2
+  exit 2
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT}/.env"
 EXAMPLE="${ROOT}/.env.example"
@@ -23,10 +31,11 @@ else
 fi
 
 # Replace each CHANGE_ME_* token with a random secret
-python3 - "${ENV_FILE}" <<'PYEOF'
+python3 - "${ENV_FILE}" "${ROTATE_S3}" <<'PYEOF'
 import sys, re, secrets, base64, pathlib
 
 env_file = pathlib.Path(sys.argv[1])
+rotate_s3 = sys.argv[2].lower() == "true"
 text = env_file.read_text()
 
 def rand_b64(n=32):
@@ -63,6 +72,12 @@ for token, gen_fn in replacements.items():
     if token in text:
         text = text.replace(token, gen_fn(), 1)
 
+if rotate_s3:
+    text, access_count = re.subn(r"^S3_ACCESS_KEY=.*$", "S3_ACCESS_KEY=DARLAKE" + secrets.token_hex(8).upper(), text, flags=re.MULTILINE)
+    text, secret_count = re.subn(r"^S3_SECRET_KEY=.*$", "S3_SECRET_KEY=" + rand_hex(20), text, flags=re.MULTILINE)
+    if access_count != 1 or secret_count != 1:
+        raise SystemExit("S3_ACCESS_KEY and S3_SECRET_KEY must each appear exactly once")
+
 env_file.write_text(text)
-print(f"✓  Secrets written to {env_file}")
+print(f"✓ {'S3 identity rotated in' if rotate_s3 else 'Secrets written to'} {env_file}")
 PYEOF

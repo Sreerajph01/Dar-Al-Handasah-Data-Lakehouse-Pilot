@@ -2,6 +2,7 @@
 .env
 *.env.local
 secrets/
+evidence/
 
 # Generated credentials and certs
 infra/tls/*.key
@@ -9,6 +10,10 @@ infra/tls/*.crt
 infra/tls/*.pem
 infra/tls/*.csr
 infra/keycloak/realm-export-generated.json
+infra/seaweedfs/s3.json
+infra/trino/catalog/iceberg.properties
+infra/trino/catalog/postgres.properties
+infra/opensearch/opensearch_dashboards.yml
 
 # Docker volumes (bind-mounted data)
 volumes/

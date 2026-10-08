@@ -12,7 +12,15 @@
 #   • Samba host port: corrected 445 → 1445 (Windows SMB conflict)
 #   • Keycloak: 25.0.6 → 26.0.7 (latest stable)
 
-## Core Profile (OSS, always started by `make up`)
+## Supported commands
+
+Run `.\dar.ps1 up`, `.\dar.ps1 down`, `.\dar.ps1 seed`, and `.\dar.ps1 health` from Windows PowerShell 5.1 or later. `dar.ps1` is the single implementation for lifecycle and verification commands; the optional Makefile forwards to it for Linux/WSL users.
+
+`.\dar.ps1 down` preserves named volumes. `.\dar.ps1 reset -Force` prints the project volumes and then deletes them. Health checks probe application endpoints and Postgres, not just container state.
+
+The historical `s3-proxy` container was a raw TCP forwarder to `dar-seaweedfs-s3:8333`. It had no repository references and is not part of this stack. S3 checks connect directly to the SeaweedFS gateway on port 8333.
+
+## Core Profile (OSS, always started by `.\dar.ps1 up`)
 
 | # | Capability | Component | Image/Package | Version | Licence | OSI | Port(s) | RAM Est. |
 |---|---|---|---|---|---|---|---|---|

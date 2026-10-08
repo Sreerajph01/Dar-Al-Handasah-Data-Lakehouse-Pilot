@@ -180,8 +180,6 @@ services:
       -max=${SEAWEEDFS_MAX_VOLUMES:-100}
     volumes:
       - seaweedfs-volume-data:/data
-    ports:
-      - "${SEAWEEDFS_VOLUME_PORT:-8080}:8080"
     depends_on:
       seaweedfs-master:
         condition: service_started
@@ -363,7 +361,7 @@ services:
       postgres-meta:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8444/health/ready || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8444' || exit 1"]
       interval: 20s
       timeout: 15s
       retries: 20
@@ -467,6 +465,7 @@ services:
       OPENSEARCH_INITIAL_ADMIN_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
       knn.memory.circuit_breaker.enabled: "true"
       knn.memory.circuit_breaker.limit: "50%"
+      plugins.security.ssl.http.enabled: "false"
     ulimits:
       memlock:
         soft: -1
@@ -540,7 +539,7 @@ services:
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 20s
       timeout: 15s
       retries: 10

@@ -7,22 +7,15 @@
 
 ## Quick start
 
-```bash
-# 1. Clone into WSL2 filesystem (see §WSL2 Setup — MANDATORY)
-git clone <repo-url> ~/dar-lakehouse-pilot
-cd ~/dar-lakehouse-pilot
+Run the supported commands from Windows PowerShell 5.1 or later in the repository root:
 
-# 2. Start full demo stack
-make up          # generates .env, starts all core services
-
-# 3. Seed data and bootstrap
-make seed
-
-# 4. Verify everything
-make verify
+```powershell
+.\dar.ps1 up
+.\dar.ps1 seed
+.\dar.ps1 health
 ```
 
-> **⚠ IMPORTANT:** All `make` commands must be run from **inside WSL2**, not from Windows CMD or PowerShell. See §WSL2 Setup.
+`dar.ps1` is the single command entry point. The optional Makefile only forwards targets to it for Linux/WSL users with PowerShell installed.
 
 ---
 
@@ -53,14 +46,9 @@ make verify
 
 ---
 
-## WSL2 Setup (MANDATORY for Windows hosts)
+## Windows and Docker Desktop
 
-This repo **must** be cloned and operated from within the WSL2 filesystem
-(e.g., `~/dar-lakehouse-pilot`), **not** from `/mnt/c/...`. Performance and
-file permission issues make the Windows NTFS mount unsuitable for:
-- `Makefile` bash targets
-- Docker bind-mount volumes
-- Shell scripts that need execute bit (`chmod +x`)
+The repo can be operated from Windows PowerShell with Docker Desktop and its WSL2 backend. Linux commands used by helper scripts run inside pinned containers.
 
 ### Step 1 — Configure `.wslconfig` memory limits
 
@@ -91,7 +79,7 @@ sudo sysctl -w vm.max_map_count=262144
 echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf
 ```
 
-### Step 3 — Install prerequisites inside WSL2
+### Prerequisites
 
 ```bash
 # Docker (Docker Desktop with WSL2 backend is recommended, or docker-ce)
@@ -155,21 +143,22 @@ CROSS-CUTTING: Keycloak (SSO) · OPA (RBAC/ABAC/RLS) · OpenMetadata (catalog)
 ## Key make targets
 
 ```bash
-make up              # Start full demo stack
-make up-lite         # Start lite stack (16 GB machines)
-make down            # Stop services (keep volumes)
-make reset           # Destroy volumes and restart
-make seed            # Bootstrap + load demo data
-make verify          # Full verification (M1 gate: s3-conformance + smoke-m1 + branding + opa)
-make s3-conformance  # Run S3 conformance matrix → docs/S3_CONFORMANCE.md
-make smoke-m1        # Test Iceberg create/read/write via Trino on SeaweedFS
-make lint-branding   # Scan for forbidden branding terms
-make simulate-day    # Advance day simulator (insert/update/delete changes)
-make backup          # Backup all state
-make restore         # Restore from latest backup
-make benchmark       # Run benchmark suite → docs/BENCHMARK_REPORT.md
-make licenses        # Generate LICENSES.md
-make demo            # Interactive demo mode (DEMO_SCRIPT.md)
+.\dar.ps1 up              # Start all core, UC, governance, observability, and CI/CD services
+.\dar.ps1 up-lite         # Start core + UC1 + UC2
+.\dar.ps1 down            # Stop services and keep volumes
+.\dar.ps1 reset -Force    # Show and remove project volumes
+.\dar.ps1 seed            # Bootstrap and load demo data
+.\dar.ps1 health          # Run functional checks and print PASS/FAIL table
+.\dar.ps1 verify          # Health checks plus OPA bundle verification
+.\dar.ps1 s3-conformance  # Run S3 conformance checks directly against the gateway
+.\dar.ps1 smoke-m1        # Test Iceberg create/read/write via Trino
+.\dar.ps1 lint-branding   # Scan for forbidden branding terms
+.\dar.ps1 simulate-day    # Advance the source data simulator
+.\dar.ps1 backup          # Back up state
+.\dar.ps1 restore         # Restore the latest backup
+.\dar.ps1 benchmark       # Run the benchmark suite
+.\dar.ps1 licenses        # Generate LICENSES.md
+.\dar.ps1 demo            # Interactive demo mode (if a runner is present)
 ```
 
 ---

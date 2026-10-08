@@ -30,7 +30,7 @@ services:
       ELASTICSEARCH_INDEX_PREFIX: om
       # Pipeline service
       PIPELINE_SERVICE_CLIENT_ENDPOINT: "http://openmetadata-ingestion:8080"
-      PIPELINE_SERVICE_CLIENT_VERIFY_SSL: "false"
+      PIPELINE_SERVICE_CLIENT_VERIFY_SSL: "no-ssl"
       # Auth (Keycloak OIDC — enabled in M5; basic auth for M1)
       AUTHENTICATION_PROVIDER: basic
       AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
@@ -51,7 +51,7 @@ services:
       opensearch:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8585/api/v1/system/status || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8585/api/v1/system/status || exit 1"]
       interval: 30s
       timeout: 20s
       retries: 20
