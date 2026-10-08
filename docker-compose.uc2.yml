@@ -1,0 +1,161 @@
+# =============================================================================
+# docker-compose.uc2.yml — UC2: Warehouse Migration & Self-serve Analytics
+# Services specific to the data warehouse migration use case.
+# =============================================================================
+
+services:
+
+  # ─── D365 F&O mock (FastAPI, OData-style) ────────────────────────────────
+  d365-mock:
+    build:
+      context: ./uc2-warehouse-migration/sources/d365_mock
+      dockerfile: Dockerfile
+    container_name: dar-d365-mock
+    restart: unless-stopped
+    environment:
+      SEED_PROJECTS: "METRO-01,BRIDGE-02,HOSP-03,WTREATING-04,HIGHRISE-05"
+      SEED_ROWS_PER_ENTITY: "500"
+    # Seed generation updates this fixture.  Mount it so a running mock serves
+    # the exact fixture written by `make seed` and `make simulate-day`; copying
+    # it only at image-build time makes the API silently serve stale data.
+    volumes:
+      - ./uc2-warehouse-migration/sources/d365_mock/data.json:/app/data.json:ro
+    ports:
+      - "${D365_MOCK_PORT:-8090}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # ─── SharePoint mock (FastAPI, Graph-style REST) ──────────────────────────
+  sharepoint-mock:
+    build:
+      context: ./uc2-warehouse-migration/sources/sharepoint_mock
+      dockerfile: Dockerfile
+    container_name: dar-sharepoint-mock
+    restart: unless-stopped
+    environment:
+      SEED_PROJECTS: "METRO-01,BRIDGE-02,HOSP-03,WTREATING-04,HIGHRISE-05"
+    volumes:
+      - ./uc2-warehouse-migration/sources/sharepoint_mock/data.json:/app/data.json:ro
+    ports:
+      - "${SHAREPOINT_MOCK_PORT:-8091}:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # ─── Data Product API (FastAPI + Trino + OPA) ────────────────────────────
+  data-api:
+    build:
+      context: ./uc2-warehouse-migration/api
+      dockerfile: Dockerfile
+    container_name: dar-data-api
+    restart: unless-stopped
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: "${TRINO_PORT:-18080}"
+      TRINO_CATALOG: "${TRINO_DEFAULT_CATALOG:-iceberg}"
+      TRINO_SCHEMA: "${TRINO_DEFAULT_SCHEMA:-gold}"
+      KEYCLOAK_URL: "http://keycloak:8444"
+      KEYCLOAK_REALM: "${KEYCLOAK_REALM:-dar-lakehouse}"
+      KEYCLOAK_CLIENT_ID: data-api
+      KEYCLOAK_CLIENT_SECRET: "data-api-client-secret-dev"
+      NL2SQL_ENDPOINT: "http://nl2sql-service:8000"
+    ports:
+      - "${DATA_API_PORT:-8092}:8000"
+    depends_on:
+      trino:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    networks:
+      - lakehouse-net
+
+  # ─── NL2SQL micro-service (Ollama + SQLGlot) ─────────────────────────────
+  nl2sql-service:
+    build:
+      context: ./uc2-warehouse-migration/nl2sql
+      dockerfile: Dockerfile
+    container_name: dar-nl2sql
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_LLM_MODEL: "${OLLAMA_LLM_MODEL:-qwen2.5:7b-instruct-q4_K_M}"
+      TRINO_HOST: trino
+      TRINO_PORT: "${TRINO_PORT:-18080}"
+      TRINO_CATALOG: "${TRINO_DEFAULT_CATALOG:-iceberg}"
+    ports:
+      - "8095:8000"
+    depends_on:
+      ollama:
+        condition: service_started
+      trino:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - lakehouse-net
+
+  # ─── Apache Superset ─────────────────────────────────────────────────────
+  superset:
+    image: apache/superset:${SUPERSET_VERSION:-4.1.1}
+    container_name: dar-superset
+    restart: unless-stopped
+    environment:
+      SUPERSET_SECRET_KEY: "${SUPERSET_SECRET_KEY}"
+      DATABASE_URL: >-
+        postgresql+psycopg2://${PG_META_USER}:${PG_META_PASSWORD}@postgres-meta:5432/${PG_META_DB}
+      REDIS_HOST: ""    # No Redis — use Celery with local executor or disable async
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_MAIL_FROM: superset@dar.demo
+      SUPERSET_LOAD_EXAMPLES: "false"
+    volumes:
+      - superset-data:/app/superset_home
+      - ./uc2-warehouse-migration/superset/dashboards:/app/superset_home/dashboards:ro
+    ports:
+      - "${SUPERSET_PORT:-8088}:8088"
+    command: >
+      sh -c "
+        superset db upgrade &&
+        superset fab create-admin --username ${SUPERSET_ADMIN_USER} --firstname Admin --lastname User --email admin@dar.demo --password ${SUPERSET_ADMIN_PASSWORD} 2>/dev/null || true &&
+        superset init &&
+        gunicorn --bind 0.0.0.0:8088 --workers 2 --timeout 120 'superset.app:create_app()'
+      "
+    depends_on:
+      postgres-meta:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8088/health || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 120s
+    networks:
+      - lakehouse-net
+
+volumes:
+  superset-data:
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default

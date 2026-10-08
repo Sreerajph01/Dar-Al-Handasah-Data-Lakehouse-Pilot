@@ -1,0 +1,45 @@
+_format_version: "3.0"
+
+services:
+  - name: data-api
+    url: http://data-api:8000
+    routes:
+      - name: data-api-route
+        paths: ["/v1/data"]
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+
+  - name: search-api
+    url: http://search-api:8000
+    routes:
+      - name: search-api-route
+        paths: ["/v1/search"]
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+
+  - name: nl2sql-api
+    url: http://nl2sql-service:8000
+    routes:
+      - name: nl2sql-route
+        paths: ["/v1/nl2sql"]
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 20
+          policy: local
+
+  - name: trino-proxy
+    url: http://trino:8080
+    routes:
+      - name: trino-route
+        paths: ["/trino"]
+        strip_path: true

@@ -1,0 +1,16 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: iceberg
+    schema: bronze
+    tables:
+      - name: pg_dim_project
+      - name: d365_projects
+      - name: pg_dim_employee
+      - name: pg_dim_wbs
+      - name: sp_driveitems
+      - name: pg_fact_budget
+      - name: pg_fact_cost_actuals
+      - name: pg_fact_evm_snapshot
+      - name: pg_fact_timesheet

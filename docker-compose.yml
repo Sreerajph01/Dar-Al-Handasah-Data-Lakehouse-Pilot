@@ -1,0 +1,618 @@
+# =============================================================================
+# dar-lakehouse-pilot — docker-compose.yml (CORE profile)
+# =============================================================================
+# All images are pinned; no :latest tags.
+# Redis removed (RSALv2/SSPL); Airflow uses LocalExecutor.
+# SeaweedFS S3 gateway uses host-accessible port via .env.
+# OpenSearch transport port is 9300 (not 9600).
+# Samba binds host port 1445 (not 445 — reserved on Windows).
+# =============================================================================
+
+x-common-env: &common-env
+  TZ: UTC
+
+x-pg-healthcheck: &pg-healthcheck
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PG_META_USER:-lakehouse} -d ${PG_META_DB:-lakehouse_meta}"]
+    interval: 10s
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+
+x-airflow-common-env: &airflow-common-env
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__FERNET_KEY: "${AIRFLOW_FERNET_KEY}"
+  AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: "300"
+  AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "300"
+  AIRFLOW__SCHEDULER__PARSING_PROCESSES: "1"
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+    postgresql+psycopg2://${PG_AIRFLOW_USER}:${PG_AIRFLOW_PASSWORD}@${PG_AIRFLOW_HOST}:5432/${PG_AIRFLOW_DB}
+  AIRFLOW__WEBSERVER__SECRET_KEY: "${AIRFLOW_WEBSERVER_SECRET}"
+  AIRFLOW__WEBSERVER__BASE_URL: "http://localhost:${AIRFLOW_PORT}"
+  AIRFLOW__LOGGING__LOGGING_LEVEL: WARNING
+  # OpenLineage
+  AIRFLOW__OPENLINEAGE__TRANSPORT: >-
+    {"type": "http", "url": "${OPENLINEAGE_URL}"}
+  AIRFLOW__OPENLINEAGE__NAMESPACE: "dar-lakehouse-${ENVIRONMENT}"
+  # S3 for logs (optional — uses local by default)
+  _PIP_ADDITIONAL_REQUIREMENTS: >-
+    apache-airflow-providers-trino==5.6.0
+    apache-airflow-providers-postgres==5.11.3
+    apache-airflow-providers-amazon==8.28.0
+    apache-airflow-providers-fab==1.3.0
+    dlt sqlalchemy trino psycopg2-binary pandas requests pyarrow
+    openlineage-airflow==1.22.0
+    dbt-trino==1.8.3
+    dlt==0.5.4
+  # DAG Variables
+  PG_META_HOST: "dar-postgres-meta"
+  PG_META_DB: "${PG_META_DB}"
+  PG_META_USER: "${PG_META_USER}"
+  PG_META_PASSWORD: "${PG_META_PASSWORD}"
+  PG_DW_HOST: "dar-postgres-dw"
+  PG_DW_DB: "${PG_DW_DB:-DAR_DW}"
+  PG_DW_USER: "${PG_DW_USER:-dar_dw_reader}"
+  PG_DW_PASSWORD: "${PG_DW_PASSWORD}"
+
+services:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POSTGRES — metadata (Lakekeeper catalog, OpenMetadata app DB)
+  # ═══════════════════════════════════════════════════════════════════════════
+  postgres-meta:
+    image: postgres:16.4
+    container_name: dar-postgres-meta
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: "${PG_META_DB}"
+      POSTGRES_USER: "${PG_META_USER}"
+      POSTGRES_PASSWORD: "${PG_META_PASSWORD}"
+      # Additional databases created by init script
+      LAKEKEEPER_DB: "${LAKEKEEPER_DB}"
+      LAKEKEEPER_DB_USER: "${LAKEKEEPER_DB_USER}"
+      LAKEKEEPER_DB_PASSWORD: "${LAKEKEEPER_DB_PASSWORD}"
+      OM_DB: "${OM_DB}"
+      OM_DB_USER: "${OM_DB_USER}"
+      OM_DB_PASSWORD: "${OM_DB_PASSWORD}"
+    volumes:
+      - pg-meta-data:/var/lib/postgresql/data
+      - ./infra/postgres/init-meta-dbs.sh:/docker-entrypoint-initdb.d/01-init-meta-dbs.sh:ro
+    ports:
+      - "${PG_META_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${PG_META_USER:-lakehouse} -d ${PG_META_DB:-lakehouse_meta}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POSTGRES — Airflow metadata
+  # ═══════════════════════════════════════════════════════════════════════════
+  postgres-airflow:
+    image: postgres:16.4
+    container_name: dar-postgres-airflow
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: "${PG_AIRFLOW_DB}"
+      POSTGRES_USER: "${PG_AIRFLOW_USER}"
+      POSTGRES_PASSWORD: "${PG_AIRFLOW_PASSWORD}"
+    volumes:
+      - pg-airflow-data:/var/lib/postgresql/data
+    ports:
+      - "${PG_AIRFLOW_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_AIRFLOW_USER:-airflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POSTGRES — DAR_DW (source data warehouse, default profile)
+  # ═══════════════════════════════════════════════════════════════════════════
+  postgres-dw:
+    image: postgres:16.4
+    container_name: dar-postgres-dw
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      POSTGRES_DB: "${PG_DW_DB}"
+      POSTGRES_USER: "${PG_DW_SA_USER}"
+      POSTGRES_PASSWORD: "${PG_DW_SA_PASSWORD}"
+    volumes:
+      - pg-dw-data:/var/lib/postgresql/data
+      - ./uc2-warehouse-migration/sources/dar_dw/ddl:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "${PG_DW_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_DW_SA_USER:-dar_dw_admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SEAWEEDFS — master
+  # ═══════════════════════════════════════════════════════════════════════════
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-3.75}
+    container_name: dar-seaweedfs-master
+    restart: unless-stopped
+    command: >
+      master
+      -mdir=/data
+      -defaultReplication=${SEAWEEDFS_REPLICATION:-000}
+      -volumeSizeLimitMB=1024
+      -ip=seaweedfs-master
+      -port=9333
+    volumes:
+      - seaweedfs-master-data:/data
+    ports:
+      - "${SEAWEEDFS_MASTER_PORT:-9333}:9333"
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SEAWEEDFS — volume
+  # ═══════════════════════════════════════════════════════════════════════════
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-3.75}
+    container_name: dar-seaweedfs-volume
+    restart: unless-stopped
+    command: >
+      volume
+      -mserver=seaweedfs-master:9333
+      -dir=/data
+      -port=8080
+      -ip=seaweedfs-volume
+      -max=${SEAWEEDFS_MAX_VOLUMES:-100}
+    volumes:
+      - seaweedfs-volume-data:/data
+    ports:
+      - "${SEAWEEDFS_VOLUME_PORT:-8080}:8080"
+    depends_on:
+      seaweedfs-master:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SEAWEEDFS — filer
+  # ═══════════════════════════════════════════════════════════════════════════
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-3.75}
+    container_name: dar-seaweedfs-filer
+    restart: unless-stopped
+    command: >
+      filer
+      -master=seaweedfs-master:9333
+      -port=8888
+      -ip=seaweedfs-filer
+    volumes:
+      - seaweedfs-filer-data:/data
+      - ./infra/seaweedfs/filer.toml:/etc/seaweedfs/filer.toml:ro
+    ports:
+      - "${SEAWEEDFS_FILER_PORT:-8888}:8888"
+    depends_on:
+      seaweedfs-volume:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # SEAWEEDFS — S3 gateway (path-style enforced)
+  # ═══════════════════════════════════════════════════════════════════════════
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION:-3.75}
+    container_name: dar-seaweedfs-s3
+    restart: unless-stopped
+    command: >
+      s3
+      -filer=seaweedfs-filer:8888
+      -port=8333
+      -ip.bind=0.0.0.0
+      -config=/etc/seaweedfs/s3.json
+    volumes:
+      - ./infra/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    ports:
+      - "${SEAWEEDFS_S3_PORT:-8333}:8333"
+    depends_on:
+      seaweedfs-filer:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LAKEKEEPER — Iceberg REST catalog (Rust-native, Apache-2.0)
+  # ═══════════════════════════════════════════════════════════════════════════
+  lakekeeper-init:
+    image: quay.io/lakekeeper/catalog:${LAKEKEEPER_VERSION:-v0.13.6}
+    container_name: dar-lakekeeper-init
+    command: migrate
+    environment:
+      <<: *common-env
+      ICEBERG_REST__PG_DATABASE_URL_READ: >-
+        postgresql://${LAKEKEEPER_DB_USER}:${LAKEKEEPER_DB_PASSWORD}@postgres-meta:5432/${LAKEKEEPER_DB}
+      ICEBERG_REST__PG_DATABASE_URL_WRITE: >-
+        postgresql://${LAKEKEEPER_DB_USER}:${LAKEKEEPER_DB_PASSWORD}@postgres-meta:5432/${LAKEKEEPER_DB}
+      ICEBERG_REST__PG_ENCRYPTION_KEY: "${S3_SECRET_KEY}"
+    depends_on:
+      postgres-meta:
+        condition: service_healthy
+    networks:
+      - lakehouse-net
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:${LAKEKEEPER_VERSION:-v0.13.6}
+    container_name: dar-lakekeeper
+    restart: unless-stopped
+    command: serve
+    environment:
+      <<: *common-env
+      # Catalog backend
+      ICEBERG_REST__PG_DATABASE_URL_READ: >-
+        postgresql://${LAKEKEEPER_DB_USER}:${LAKEKEEPER_DB_PASSWORD}@postgres-meta:5432/${LAKEKEEPER_DB}
+      ICEBERG_REST__PG_DATABASE_URL_WRITE: >-
+        postgresql://${LAKEKEEPER_DB_USER}:${LAKEKEEPER_DB_PASSWORD}@postgres-meta:5432/${LAKEKEEPER_DB}
+      ICEBERG_REST__PG_ENCRYPTION_KEY: "${S3_SECRET_KEY}"
+      # No auth in dev mode (Keycloak OIDC added in security milestone M5)
+      ICEBERG_REST__ALLOW_ORIGIN: "*"
+      RUST_LOG: "info"
+    ports:
+      - "${LAKEKEEPER_PORT:-8181}:8181"
+    depends_on:
+      lakekeeper-init:
+        condition: service_completed_successfully
+      postgres-meta:
+        condition: service_healthy
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # TRINO — distributed SQL engine
+  # ═══════════════════════════════════════════════════════════════════════════
+  trino:
+    image: trinodb/trino:${TRINO_VERSION:-455}
+    container_name: dar-trino
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+    volumes:
+      - ./infra/trino/config.properties:/etc/trino/config.properties:ro
+      - ./infra/trino/node.properties:/etc/trino/node.properties:ro
+      - ./infra/trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./infra/trino/catalog/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+      - ./infra/trino/catalog/tpch.properties:/etc/trino/catalog/tpch.properties:ro
+      - ./infra/trino/catalog/tpcds.properties:/etc/trino/catalog/tpcds.properties:ro
+      - ./infra/trino/access-control/opa.properties:/etc/trino/access-control.properties:ro
+    ports:
+      - "${TRINO_PORT:-18080}:8080"
+    depends_on:
+      lakekeeper:
+        condition: service_started
+      opa:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/v1/status || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 90s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OPA — Open Policy Agent (policy-as-code for Trino RBAC/ABAC/RLS)
+  # ═══════════════════════════════════════════════════════════════════════════
+  opa:
+    image: openpolicyagent/opa:${OPA_VERSION:-0.68.0}
+    container_name: dar-opa
+    restart: unless-stopped
+    command: >
+      run
+      --server
+      --addr=0.0.0.0:8282
+      --log-level=info
+      /policies
+    volumes:
+      - ./infra/opa/policies:/policies:ro
+      - ./infra/opa/data:/data:ro
+    ports:
+      - "${OPA_PORT:-8282}:8282"
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KEYCLOAK — Identity Provider / SSO (Quay image, Apache-2.0)
+  # ═══════════════════════════════════════════════════════════════════════════
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.0.7}
+    container_name: dar-keycloak
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      KEYCLOAK_ADMIN: "${KEYCLOAK_ADMIN}"
+      KEYCLOAK_ADMIN_PASSWORD: "${KEYCLOAK_ADMIN_PASSWORD}"
+      KC_DB: postgres
+      KC_DB_URL: "jdbc:postgresql://postgres-meta:5432/${PG_META_DB}"
+      KC_DB_USERNAME: "${PG_META_USER}"
+      KC_DB_PASSWORD: "${PG_META_PASSWORD}"
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_PORT: "8444"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_LOG_LEVEL: "WARN"
+    command: start-dev --import-realm
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_HTTP_PORT:-8444}:8444"
+    depends_on:
+      postgres-meta:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8444/health/ready || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 20
+      start_period: 120s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # AIRFLOW — webserver (LocalExecutor, no Redis)
+  # ═══════════════════════════════════════════════════════════════════════════
+  airflow-webserver:
+    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    container_name: dar-airflow-webserver
+    restart: unless-stopped
+    environment:
+      <<: *airflow-common-env
+    command: webserver
+    volumes:
+      - ./infra/airflow/webserver_config.py:/opt/airflow/webserver_config.py:ro
+      - airflow-logs:/opt/airflow/logs
+      - ./uc1-search/dags:/opt/airflow/dags/uc1:ro
+      - ./uc2-warehouse-migration/dags:/opt/airflow/dags/uc2:ro
+      - ./uc2-warehouse-migration/ingestion/dlt_pipelines:/opt/airflow/dags/ingestion/dlt_pipelines:ro
+    ports:
+      - "${AIRFLOW_PORT:-8079}:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 90s
+    networks:
+      - lakehouse-net
+
+  airflow-scheduler:
+    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    container_name: dar-airflow-scheduler
+    restart: unless-stopped
+    environment:
+      <<: *airflow-common-env
+    command: scheduler
+    volumes:
+      - airflow-logs:/opt/airflow/logs
+      - ./uc1-search/dags:/opt/airflow/dags/uc1:ro
+      - ./uc2-warehouse-migration/dags:/opt/airflow/dags/uc2:ro
+      - ./uc2-warehouse-migration/ingestion/dlt_pipelines:/opt/airflow/dags/ingestion/dlt_pipelines:ro
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 20s
+      retries: 10
+      start_period: 120s
+    networks:
+      - lakehouse-net
+
+  # One-shot init: db migrate + create admin user
+  # Uses the documented Airflow 2.x Docker init pattern
+  airflow-init:
+    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    container_name: dar-airflow-init
+    environment:
+      <<: *airflow-common-env
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username admin \
+          --password "${AIRFLOW_WEBSERVER_SECRET}" \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@dar.demo || true
+    depends_on:
+      postgres-airflow:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OPENSEARCH — shared (OpenMetadata om_* indices + UC1 uc1_* indices)
+  # Requires OpenSearch 3.3.2 for OpenMetadata 2.0.3 compatibility
+  # ═══════════════════════════════════════════════════════════════════════════
+  opensearch:
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION:-3.3.2}
+    container_name: dar-opensearch
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      cluster.name: dar-lakehouse-search
+      node.name: opensearch-node1
+      discovery.type: single-node
+      OPENSEARCH_JAVA_OPTS: "${OPENSEARCH_JAVA_OPTS:--Xms1g -Xmx1g}"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+      knn.memory.circuit_breaker.enabled: "true"
+      knn.memory.circuit_breaker.limit: "50%"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+      - "${OPENSEARCH_TRANSPORT_PORT:-9300}:9300"   # transport port (NOT 9600)
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - >
+          curl -sf -u "admin:${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+          http://localhost:9200/_cluster/health || exit 1
+      interval: 20s
+      timeout: 15s
+      retries: 20
+      start_period: 120s
+    networks:
+      - lakehouse-net
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:${OPENSEARCH_DASHBOARDS_VERSION:-3.3.0}
+    container_name: dar-opensearch-dashboards
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+    volumes:
+      - ./infra/opensearch/opensearch_dashboards.yml:/usr/share/opensearch-dashboards/config/opensearch_dashboards.yml:ro
+    ports:
+      - "${OPENSEARCH_DASHBOARDS_PORT:-5601}:5601"
+    depends_on:
+      opensearch:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 90s
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MAILPIT — local SMTP + UI (for Superset scheduled email reports)
+  # ═══════════════════════════════════════════════════════════════════════════
+  mailpit:
+    image: axllent/mailpit:${MAILPIT_VERSION:-v1.21.1}
+    container_name: dar-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # OLLAMA — LLM + embedding runtime (CPU default; GPU via opt-gpu profile)
+  # ═══════════════════════════════════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.3.14}
+    container_name: dar-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+  # One-shot: pull required models after Ollama is ready
+  ollama-pull:
+    image: ollama/ollama:${OLLAMA_VERSION:-0.3.14}
+    container_name: dar-ollama-pull
+    restart: "no"
+    entrypoint: >
+      sh -c "
+        ollama pull ${OLLAMA_LLM_MODEL:-qwen2.5:7b-instruct-q4_K_M} &&
+        ollama pull ${OLLAMA_EMBED_MODEL:-nomic-embed-text:1.5}
+      "
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    depends_on:
+      ollama:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # KONG — API Gateway (DB-less)
+  # ═══════════════════════════════════════════════════════════════════════════
+  kong:
+    image: kong:${KONG_VERSION:-3.8.0}
+    container_name: dar-kong
+    restart: unless-stopped
+    environment:
+      KONG_PLUGINS: "bundled"
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_MEM_CACHE_SIZE: "64m"
+      KONG_NGINX_WORKER_PROCESSES: "1"
+    volumes:
+      - ./infra/kong/kong.yml:/etc/kong/kong.yml:ro
+    ports:
+      - "${KONG_PROXY_PORT:-8000}:8000"
+      - "${KONG_ADMIN_PORT:-8001}:8001"
+    healthcheck:
+      test: ["CMD-SHELL", "kong health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lakehouse-net
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  pg-meta-data:
+  pg-airflow-data:
+  pg-dw-data:
+  seaweedfs-master-data:
+  seaweedfs-volume-data:
+  seaweedfs-filer-data:
+  opensearch-data:
+  ollama-data:
+  airflow-logs:
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  lakehouse-net:
+    driver: bridge
+    name: dar-lakehouse_default

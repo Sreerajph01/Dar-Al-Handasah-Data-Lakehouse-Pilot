@@ -1,0 +1,11 @@
+[leveldb2]
+enabled = true
+dir = "/data/filer_leveldb"
+
+# Use default leveldb — swap to Postgres for production
+# [mysql]
+# hostname = "localhost"
+# port = 3306
+# database = "seaweedfs"
+# username = "seaweedfs"
+# password = ""

@@ -1,0 +1,175 @@
+{
+  "realm": "dar-lakehouse",
+  "enabled": true,
+  "displayName": "Dar Al Handasah Lakehouse",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 3600,
+  "ssoSessionMaxLifespan": 86400,
+  "clients": [
+    {
+      "clientId": "trino",
+      "name": "Trino SQL Engine",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:18080/*"],
+      "webOrigins": ["http://localhost:18080"]
+    },
+    {
+      "clientId": "superset",
+      "name": "Apache Superset",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "superset-client-secret-dev",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:8088/*"],
+      "webOrigins": ["http://localhost:8088"]
+    },
+    {
+      "clientId": "data-api",
+      "name": "Data Product API",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "data-api-client-secret-dev",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:8000/*", "http://localhost:8092/*"],
+      "webOrigins": ["http://localhost:8000", "http://localhost:8092"]
+    },
+    {
+      "clientId": "search-ui",
+      "name": "Search UI (UC1)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"]
+    },
+    {
+      "clientId": "openmetadata",
+      "name": "OpenMetadata Catalog",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "openmetadata-client-secret-dev",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:8585/*"],
+      "webOrigins": ["http://localhost:8585"]
+    },
+    {
+      "clientId": "airflow",
+      "name": "Apache Airflow",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "airflow-client-secret-dev",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:8079/*"],
+      "webOrigins": ["http://localhost:8079"]
+    },
+    {
+      "clientId": "grafana",
+      "name": "Grafana",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "grafana-client-secret-dev",
+      "standardFlowEnabled": true,
+      "redirectUris": ["http://localhost:3002/*"],
+      "webOrigins": ["http://localhost:3002"]
+    },
+    {
+      "clientId": "lakekeeper",
+      "name": "Lakekeeper Iceberg Catalog",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "lakekeeper-client-secret-dev",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": ["http://localhost:8181/*"],
+      "webOrigins": ["http://localhost:8181"]
+    }
+  ],
+  "groups": [
+    {"name": "PMO_Admin",              "path": "/PMO_Admin"},
+    {"name": "Project_Manager_MetroLine", "path": "/Project_Manager_MetroLine"},
+    {"name": "Finance_Analyst",        "path": "/Finance_Analyst"},
+    {"name": "HR_Restricted",          "path": "/HR_Restricted"},
+    {"name": "Auditor_ReadOnly",       "path": "/Auditor_ReadOnly"},
+    {"name": "Data_Engineer",          "path": "/Data_Engineer"},
+    {"name": "Search_Users",           "path": "/Search_Users"}
+  ],
+  "users": [
+    {
+      "username": "pmo-admin",
+      "enabled": true,
+      "email": "pmo-admin@dar.demo",
+      "firstName": "PMO",
+      "lastName": "Admin",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/PMO_Admin", "/Data_Engineer"],
+      "attributes": {"project_ids": ["METRO-01", "BRIDGE-02", "HOSP-03", "WTREATING-04", "HIGHRISE-05"]}
+    },
+    {
+      "username": "pm-metro",
+      "enabled": true,
+      "email": "pm-metro@dar.demo",
+      "firstName": "Ahmed",
+      "lastName": "Al-Rashid",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/Project_Manager_MetroLine", "/Search_Users"],
+      "attributes": {"project_ids": ["METRO-01"]}
+    },
+    {
+      "username": "finance-analyst",
+      "enabled": true,
+      "email": "finance@dar.demo",
+      "firstName": "Sara",
+      "lastName": "Khalid",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/Finance_Analyst", "/Search_Users"],
+      "attributes": {"project_ids": ["METRO-01", "BRIDGE-02", "HOSP-03", "WTREATING-04", "HIGHRISE-05"]}
+    },
+    {
+      "username": "hr-user",
+      "enabled": true,
+      "email": "hr@dar.demo",
+      "firstName": "HR",
+      "lastName": "User",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/HR_Restricted"],
+      "attributes": {"project_ids": []}
+    },
+    {
+      "username": "auditor",
+      "enabled": true,
+      "email": "auditor@dar.demo",
+      "firstName": "External",
+      "lastName": "Auditor",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/Auditor_ReadOnly"],
+      "attributes": {"project_ids": ["METRO-01", "BRIDGE-02", "HOSP-03", "WTREATING-04", "HIGHRISE-05"]}
+    },
+    {
+      "username": "data-engineer",
+      "enabled": true,
+      "email": "de@dar.demo",
+      "firstName": "Data",
+      "lastName": "Engineer",
+      "credentials": [{"type": "password", "value": "DarDemo123!", "temporary": false}],
+      "groups": ["/Data_Engineer"],
+      "attributes": {"project_ids": ["METRO-01", "BRIDGE-02", "HOSP-03", "WTREATING-04", "HIGHRISE-05"]}
+    }
+  ],
+  "roles": {
+    "realm": [
+      {"name": "pmo_admin",    "description": "Full access to all projects and admin functions"},
+      {"name": "project_mgr",  "description": "Access to own project data only"},
+      {"name": "finance",      "description": "Access to budgets and financial data"},
+      {"name": "hr",           "description": "Access to HR and personnel data only"},
+      {"name": "auditor",      "description": "Read-only access to all data"},
+      {"name": "data_engineer","description": "Full data platform access (no PII)"}
+    ]
+  }
+}

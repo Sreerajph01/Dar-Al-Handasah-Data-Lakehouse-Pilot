@@ -1,0 +1,83 @@
+# =============================================================================
+# docker-compose.uc1.yml — UC1: Engineering Document Search
+# Services specific to the document search use case.
+# Start with: docker compose -f docker-compose.yml -f docker-compose.uc1.yml up
+# =============================================================================
+
+services:
+
+  # ─── Apache Tika — document content extraction ────────────────────────────
+  tika:
+    image: apache/tika:${TIKA_VERSION:-2.9.2.1-full}
+    container_name: dar-tika
+    restart: unless-stopped
+    ports:
+      - "${TIKA_PORT:-9998}:9998"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9998/version || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
+    networks:
+      - lakehouse-net
+
+  # ─── Samba file share (host port 1445 — 445 reserved on Windows) ──────────
+  samba:
+    image: dperson/samba:amd64
+    container_name: dar-samba
+    restart: unless-stopped
+    environment:
+      USERID: 1000
+      GROUPID: 1000
+    command: >
+      -u "smbuser;${SAMBA_PASSWORD:-DarSamba2024!}"
+      -s "engineering-docs;/mnt/share/engineering-docs;yes;no;no;smbuser"
+      -s "raw-files;/mnt/share/raw-files;yes;no;no;smbuser"
+    volumes:
+      - samba-engineering:/mnt/share/engineering-docs
+      - samba-raw:/mnt/share/raw-files
+    ports:
+      - "${SAMBA_HOST_PORT:-1445}:445"
+    networks:
+      - lakehouse-net
+
+  # ─── UC1 Search API (FastAPI + OpenSearch) ───────────────────────────────
+  search-api:
+    build:
+      context: ./uc1-search/api
+      dockerfile: Dockerfile
+    container_name: dar-search-api
+    restart: unless-stopped
+    environment:
+      OPENSEARCH_HOST: http://opensearch:9200
+      OPENSEARCH_USER: admin
+      OPENSEARCH_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_EMBED_MODEL: "${OLLAMA_EMBED_MODEL:-nomic-embed-text:1.5}"
+      KEYCLOAK_URL: "http://keycloak:8444"
+      KEYCLOAK_REALM: "${KEYCLOAK_REALM:-dar-lakehouse}"
+      KEYCLOAK_CLIENT_ID: search-ui
+    ports:
+      - "${SEARCH_API_PORT:-8093}:8000"
+    depends_on:
+      opensearch:
+        condition: service_started
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    networks:
+      - lakehouse-net
+
+volumes:
+  samba-engineering:
+  samba-raw:
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default

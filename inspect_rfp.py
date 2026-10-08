@@ -1,0 +1,31 @@
+import pandas as pd
+import yaml
+import sys
+import os
+
+df = pd.read_excel('docs/source/RFP_tooling.xlsx')
+print("Headers:", df.columns.tolist())
+
+reqs = []
+for index, row in df.iterrows():
+    if pd.notna(row.get('Nb')):
+        nb_val = row['Nb']
+        if isinstance(nb_val, float) and nb_val.is_integer():
+            nb_str = str(int(nb_val))
+        else:
+            nb_str = str(nb_val).split('.')[0] if isinstance(nb_val, float) else str(nb_val)
+        
+        reqs.append({
+            'Nb': nb_str,
+            'Requirement': str(row.get('Requirement', '')).strip()
+        })
+
+print("\nFirst 5 parsed rows:")
+for r in reqs[:5]:
+    print(r)
+    
+print("\nLast 5 parsed rows:")
+for r in reqs[-5:]:
+    print(r)
+
+print(f"\nParsed {len(reqs)} requirements into docs/rfp/requirements.yaml")

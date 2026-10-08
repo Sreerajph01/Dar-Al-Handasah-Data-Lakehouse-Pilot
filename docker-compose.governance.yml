@@ -1,0 +1,89 @@
+# =============================================================================
+# docker-compose.governance.yml — Data Governance services
+# OpenMetadata catalog + lineage, Kong API gateway (DB-less)
+# =============================================================================
+
+services:
+
+  # ─── OpenMetadata server ──────────────────────────────────────────────────
+  openmetadata:
+    image: docker.getcollate.io/openmetadata/server:${OPENMETADATA_VERSION:-2.0.3}
+    container_name: dar-openmetadata
+    restart: unless-stopped
+    environment:
+      # Database
+      DB_DRIVER_CLASS: org.postgresql.Driver
+      DB_SCHEME: postgresql
+      DB_USE_SSL: "false"
+      DB_HOST: postgres-meta
+      DB_PORT: "5432"
+      DB_DATABASE: "${OM_DB}"
+      DB_USER: "${OM_DB_USER}"
+      DB_USER_PASSWORD: "${OM_DB_PASSWORD}"
+      # OpenSearch
+      SEARCH_TYPE: opensearch
+      ELASTICSEARCH_HOST: opensearch
+      ELASTICSEARCH_PORT: "9200"
+      ELASTICSEARCH_SCHEME: http
+      ELASTICSEARCH_USER: admin
+      ELASTICSEARCH_PASSWORD: "${OPENSEARCH_INITIAL_ADMIN_PASSWORD}"
+      ELASTICSEARCH_INDEX_PREFIX: om
+      # Pipeline service
+      PIPELINE_SERVICE_CLIENT_ENDPOINT: "http://openmetadata-ingestion:8080"
+      PIPELINE_SERVICE_CLIENT_VERIFY_SSL: "false"
+      # Auth (Keycloak OIDC — enabled in M5; basic auth for M1)
+      AUTHENTICATION_PROVIDER: basic
+      AUTHORIZER_CLASS_NAME: org.openmetadata.service.security.DefaultAuthorizer
+      AUTHORIZER_CONTAINER_REQUEST_FILTER: org.openmetadata.service.security.JwtFilter
+      AUTHORIZER_ADMIN_PRINCIPALS: "[admin]"
+      AUTHORIZER_INGESTION_PRINCIPALS: "[ingestion-bot]"
+      JWT_ISSUER: "open-metadata.org"
+      JWT_KEY_ID: "Gb389a-9f76-gdjs-a92j-0242bk94356"
+      RSA_PUBLIC_KEY_FILE_PATH: ""
+      RSA_PRIVATE_KEY_FILE_PATH: ""
+      # Airflow lineage
+      AIRFLOW_HOST: "http://airflow-webserver:8080"
+    ports:
+      - "${OPENMETADATA_PORT:-8585}:8585"
+    depends_on:
+      postgres-meta:
+        condition: service_started
+      opensearch:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8585/api/v1/system/status || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 20
+      start_period: 180s
+    networks:
+      - lakehouse-net
+
+  # ─── OpenMetadata ingestion ───────────────────────────────────────────────
+  openmetadata-ingestion:
+    image: docker.getcollate.io/openmetadata/ingestion:${OPENMETADATA_VERSION:-2.0.3}
+    container_name: dar-openmetadata-ingestion
+    restart: unless-stopped
+    environment:
+      AIRFLOW_HOST: "http://airflow-webserver:8080"
+      AIRFLOW_USERNAME: admin
+      AIRFLOW_PASSWORD: "${AIRFLOW_WEBSERVER_SECRET}"
+      SERVER_HOST: openmetadata
+      SERVER_PORT: "8585"
+      DB_HOST: postgres-meta
+      DB_PORT: "5432"
+      DB_DATABASE: "${OM_DB}"
+      DB_USER: "${OM_DB_USER}"
+      DB_USER_PASSWORD: "${OM_DB_PASSWORD}"
+      OPENMETADATA_SERVER_URL: "http://openmetadata:8585"
+    depends_on:
+      openmetadata:
+        condition: service_started
+      airflow-webserver:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default

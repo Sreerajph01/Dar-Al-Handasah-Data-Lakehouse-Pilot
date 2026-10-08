@@ -1,0 +1,28 @@
+version: 2
+
+models:
+  - name: dim_project
+    description: "Silver dimension table for Projects, providing SCD2 history."
+    columns:
+      - name: project_id
+        description: "Primary key / Natural key of the project."
+        tests:
+          - not_null
+      - name: valid_from
+        description: "Timestamp when this record version became active."
+        tests:
+          - not_null
+      - name: project_name
+        description: "Name of the project."
+        tests:
+          - not_null
+
+  - name: quarantine_dim_project
+    description: "Quarantine table for invalid project rows from Bronze."
+    columns:
+      - name: project_id
+        tests:
+          - not_null
+      - name: quarantine_reason
+        tests:
+          - not_null

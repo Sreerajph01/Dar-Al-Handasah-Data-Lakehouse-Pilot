@@ -1,0 +1,27 @@
+# =============================================================================
+# docker-compose.benchmark.yml — Benchmark tools
+# Locust load test UI
+# =============================================================================
+
+services:
+
+  # ─── Locust — HTTP load test UI ──────────────────────────────────────────
+  locust:
+    image: locustio/locust:${LOCUST_VERSION:-2.31.6}
+    container_name: dar-locust
+    restart: unless-stopped
+    command: >
+      -f /mnt/locustfile.py
+      --host http://kong:8000
+      --web-port 8089
+      --headless false
+    volumes:
+      - ./benchmark/locust/locustfile.py:/mnt/locustfile.py:ro
+    ports:
+      - "${LOCUST_PORT:-8089}:8089"
+    networks:
+      - lakehouse-net
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default

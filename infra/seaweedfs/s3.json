@@ -1,0 +1,28 @@
+{
+  "identities": [
+    {
+      "name": "lakehouse-service",
+      "credentials": [
+        {
+          "accessKey": "DARLAKECF419F617DB44EF6",
+          "secretKey": "6859466e33a4782f9d48b468c84c6fe0dd7e7600"
+        }
+      ],
+      "actions": [
+        "Read", "Write", "List", "Tagging", "Admin"
+      ]
+    },
+    {
+      "name": "readonly-service",
+      "credentials": [
+        {
+          "accessKey": "readonly-DARLAKECF419F617DB44EF6",
+          "secretKey": "readonly-6859466e33a4782f9d48b468c84c6fe0dd7e7600"
+        }
+      ],
+      "actions": [
+        "Read", "List"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,361 @@
+{
+  "DriveItems": [
+    {
+      "id": "876080e1-4c9a-f99a-233d-9eb3d1eba173",
+      "name": "P001_Spec_v1.docx",
+      "projectId": "P001",
+      "webUrl": "https://dar.sharepoint.example/P001/876080e1-4c9a-f99a-233d-9eb3d1eba173",
+      "size": 4545200,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "_op": "U"
+    },
+    {
+      "id": "e84511a2-9bc2-7450-a3a9-047230020f5e",
+      "name": "P001_Spec_v2.docx",
+      "projectId": "P001",
+      "webUrl": "https://dar.sharepoint.example/P001/e84511a2-9bc2-7450-a3a9-047230020f5e",
+      "size": 3800419,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "_op": "D"
+    },
+    {
+      "id": "03aefa62-764d-a243-14fa-a0f5e61219b5",
+      "name": "P001_Spec_v3.docx",
+      "projectId": "P001",
+      "webUrl": "https://dar.sharepoint.example/P001/03aefa62-764d-a243-14fa-a0f5e61219b5",
+      "size": 2762857,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "4c9b9009-8774-77ad-94a2-2b24c028286b",
+      "name": "P001_Spec_v4.docx",
+      "projectId": "P001",
+      "webUrl": "https://dar.sharepoint.example/P001/4c9b9009-8774-77ad-94a2-2b24c028286b",
+      "size": 2213621,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "19504cc0-cf96-2bfa-5427-becdece9abc0",
+      "name": "P001_Spec_v5.docx",
+      "projectId": "P001",
+      "webUrl": "https://dar.sharepoint.example/P001/19504cc0-cf96-2bfa-5427-becdece9abc0",
+      "size": 2240328,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "153f7fee-1ad4-e764-85fb-94a6fb672437",
+      "name": "P002_Spec_v1.docx",
+      "projectId": "P002",
+      "webUrl": "https://dar.sharepoint.example/P002/153f7fee-1ad4-e764-85fb-94a6fb672437",
+      "size": 1538615,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "07996e3b-a360-c4cb-37b7-1c72b9e2f6e0",
+      "name": "P002_Spec_v2.docx",
+      "projectId": "P002",
+      "webUrl": "https://dar.sharepoint.example/P002/07996e3b-a360-c4cb-37b7-1c72b9e2f6e0",
+      "size": 1770936,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "c0821f39-577a-e5a1-80b6-068f8735b2bb",
+      "name": "P002_Spec_v3.docx",
+      "projectId": "P002",
+      "webUrl": "https://dar.sharepoint.example/P002/c0821f39-577a-e5a1-80b6-068f8735b2bb",
+      "size": 3654157,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "c67e0a01-1d34-2563-894f-f117d952e7bc",
+      "name": "P002_Spec_v4.docx",
+      "projectId": "P002",
+      "webUrl": "https://dar.sharepoint.example/P002/c67e0a01-1d34-2563-894f-f117d952e7bc",
+      "size": 697161,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "fc6f2e6e-9c18-e0ba-3eea-3cf093ffd1ea",
+      "name": "P002_Spec_v5.docx",
+      "projectId": "P002",
+      "webUrl": "https://dar.sharepoint.example/P002/fc6f2e6e-9c18-e0ba-3eea-3cf093ffd1ea",
+      "size": 4134545,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "a81ce995-9e00-801d-cb80-52e1bce642a4",
+      "name": "P003_Spec_v1.docx",
+      "projectId": "P003",
+      "webUrl": "https://dar.sharepoint.example/P003/a81ce995-9e00-801d-cb80-52e1bce642a4",
+      "size": 4815486,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "d55957c2-2abb-8747-d88e-6b86a159b481",
+      "name": "P003_Spec_v2.docx",
+      "projectId": "P003",
+      "webUrl": "https://dar.sharepoint.example/P003/d55957c2-2abb-8747-d88e-6b86a159b481",
+      "size": 893875,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "0c07cdc3-93bc-506c-77cf-865f71fed889",
+      "name": "P003_Spec_v3.docx",
+      "projectId": "P003",
+      "webUrl": "https://dar.sharepoint.example/P003/0c07cdc3-93bc-506c-77cf-865f71fed889",
+      "size": 3117195,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "dc87885e-8f6e-1e30-25d6-ad4050cca99f",
+      "name": "P003_Spec_v4.docx",
+      "projectId": "P003",
+      "webUrl": "https://dar.sharepoint.example/P003/dc87885e-8f6e-1e30-25d6-ad4050cca99f",
+      "size": 3577049,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "352d855e-95cf-bd81-6c47-016cecb359bf",
+      "name": "P003_Spec_v5.docx",
+      "projectId": "P003",
+      "webUrl": "https://dar.sharepoint.example/P003/352d855e-95cf-bd81-6c47-016cecb359bf",
+      "size": 1863975,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "c129ce67-054a-778b-c038-3a8189d8953b",
+      "name": "P004_Spec_v1.docx",
+      "projectId": "P004",
+      "webUrl": "https://dar.sharepoint.example/P004/c129ce67-054a-778b-c038-3a8189d8953b",
+      "size": 3908013,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "c4d0388b-030b-23db-bfbe-9ca3f610350b",
+      "name": "P004_Spec_v2.docx",
+      "projectId": "P004",
+      "webUrl": "https://dar.sharepoint.example/P004/c4d0388b-030b-23db-bfbe-9ca3f610350b",
+      "size": 2681074,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "65022273-ac5f-a726-2064-b2a131f5ee86",
+      "name": "P004_Spec_v3.docx",
+      "projectId": "P004",
+      "webUrl": "https://dar.sharepoint.example/P004/65022273-ac5f-a726-2064-b2a131f5ee86",
+      "size": 177564,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "1f324096-1f1d-1b20-be91-dd2abf024c09",
+      "name": "P004_Spec_v4.docx",
+      "projectId": "P004",
+      "webUrl": "https://dar.sharepoint.example/P004/1f324096-1f1d-1b20-be91-dd2abf024c09",
+      "size": 4839097,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "146f1928-95a1-55de-c98a-2fa23dbac4d7",
+      "name": "P004_Spec_v5.docx",
+      "projectId": "P004",
+      "webUrl": "https://dar.sharepoint.example/P004/146f1928-95a1-55de-c98a-2fa23dbac4d7",
+      "size": 97537,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "50ad9cd5-ddbb-5298-a575-1dda22681c70",
+      "name": "P005_Spec_v1.docx",
+      "projectId": "P005",
+      "webUrl": "https://dar.sharepoint.example/P005/50ad9cd5-ddbb-5298-a575-1dda22681c70",
+      "size": 2942336,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "6d3520b7-b937-c04f-3e4c-23fb1f0b1094",
+      "name": "P005_Spec_v2.docx",
+      "projectId": "P005",
+      "webUrl": "https://dar.sharepoint.example/P005/6d3520b7-b937-c04f-3e4c-23fb1f0b1094",
+      "size": 364523,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "87f766a9-b0a9-5fc9-0f1f-43a792ef8d59",
+      "name": "P005_Spec_v3.docx",
+      "projectId": "P005",
+      "webUrl": "https://dar.sharepoint.example/P005/87f766a9-b0a9-5fc9-0f1f-43a792ef8d59",
+      "size": 2762219,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "19df5a16-cc2f-95ed-88f6-8352d38bca4e",
+      "name": "P005_Spec_v4.docx",
+      "projectId": "P005",
+      "webUrl": "https://dar.sharepoint.example/P005/19df5a16-cc2f-95ed-88f6-8352d38bca4e",
+      "size": 4223501,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "488d5d8d-0aef-77ed-1f7e-09deb79908b6",
+      "name": "P005_Spec_v5.docx",
+      "projectId": "P005",
+      "webUrl": "https://dar.sharepoint.example/P005/488d5d8d-0aef-77ed-1f7e-09deb79908b6",
+      "size": 2759284,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2024-01-01T00:00:00",
+      "_op": "I"
+    },
+    {
+      "id": "SIM-67304",
+      "name": "SimSpec_SIM-67304.docx",
+      "projectId": "SIM",
+      "webUrl": "https://dar.sharepoint.example/SIM/SIM-67304",
+      "size": 174756,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "_op": "I"
+    }
+  ],
+  "ListItems": {
+    "StatusUpdates": [
+      {
+        "id": "6cea8e8a-34c3-ab73-ed0c-082bcb7857a9",
+        "projectId": "P001",
+        "status": "Active",
+        "reportDate": "2023-01-01",
+        "narrative": "Project P001 status report",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "466d19a5-146c-e130-89ec-de94d5942bb2",
+        "projectId": "P002",
+        "status": "Active",
+        "reportDate": "2023-01-01",
+        "narrative": "Project P002 status report",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "16e4e6e7-5fa8-c28a-ca10-c941d2b78286",
+        "projectId": "P003",
+        "status": "Active",
+        "reportDate": "2023-01-01",
+        "narrative": "Project P003 status report",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "885afb35-db8e-e298-f561-f4c33fa58bda",
+        "projectId": "P004",
+        "status": "OnHold",
+        "reportDate": "2023-01-01",
+        "narrative": "Project P004 status report",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "4ca15720-22b8-952e-e11b-17190f9d7819",
+        "projectId": "P005",
+        "status": "Completed",
+        "reportDate": "2023-01-01",
+        "narrative": "Project P005 status report",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      }
+    ],
+    "RiskRegister": [
+      {
+        "id": "28eda191-dfb4-8b5f-c2b3-5e097f101f15",
+        "projectId": "P001",
+        "riskTitle": "Schedule risk P001",
+        "probability": "High",
+        "impact": "Medium",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "93916c8b-5628-c13e-ea9b-85ebf1fc8f26",
+        "projectId": "P002",
+        "riskTitle": "Schedule risk P002",
+        "probability": "Low",
+        "impact": "Low",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "50261309-a830-b0ba-d43d-347da0c4e0f9",
+        "projectId": "P003",
+        "riskTitle": "Schedule risk P003",
+        "probability": "High",
+        "impact": "High",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "fc19285d-92d1-3d77-da53-2699202a9ced",
+        "projectId": "P004",
+        "riskTitle": "Schedule risk P004",
+        "probability": "Medium",
+        "impact": "Medium",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      },
+      {
+        "id": "34e2b1b8-7606-9f22-b6f2-3b0736514258",
+        "projectId": "P005",
+        "riskTitle": "Schedule risk P005",
+        "probability": "Medium",
+        "impact": "Low",
+        "lastModifiedDateTime": "2024-01-01T00:00:00",
+        "_op": "I"
+      }
+    ],
+    "ChangeRequests": []
+  }
+}

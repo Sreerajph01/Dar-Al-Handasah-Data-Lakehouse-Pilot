@@ -1,0 +1,72 @@
+# =============================================================================
+# docker-compose.cicd.yml — CI/CD: Gitea + act_runner
+# Locust load test UI also here (benchmark profile)
+# =============================================================================
+
+services:
+
+  # ─── Gitea — self-hosted Git + Actions ───────────────────────────────────
+  gitea:
+    image: gitea/gitea:${GITEA_VERSION:-1.22.3}
+    container_name: dar-gitea
+    restart: unless-stopped
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      GITEA__database__DB_TYPE: postgres
+      GITEA__database__HOST: postgres-meta:5432
+      GITEA__database__NAME: gitea
+      GITEA__database__USER: "${PG_META_USER}"
+      GITEA__database__PASSWD: "${PG_META_PASSWORD}"
+      GITEA__server__ROOT_URL: "http://localhost:${GITEA_HTTP_PORT:-3001}/"
+      GITEA__server__SSH_DOMAIN: localhost
+      GITEA__server__SSH_PORT: "${GITEA_SSH_PORT:-222}"
+      GITEA__mailer__ENABLED: "true"
+      GITEA__mailer__SMTP_ADDR: mailpit
+      GITEA__mailer__SMTP_PORT: "1025"
+      GITEA__mailer__FROM: gitea@dar.demo
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__service__DISABLE_REGISTRATION: "true"
+    volumes:
+      - gitea-data:/data
+    ports:
+      - "${GITEA_HTTP_PORT:-3001}:3000"
+      - "${GITEA_SSH_PORT:-222}:22"
+    depends_on:
+      postgres-meta:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/healthz || exit 1"]
+      interval: 20s
+      timeout: 15s
+      retries: 15
+      start_period: 60s
+    networks:
+      - lakehouse-net
+
+  # ─── Gitea act_runner ─────────────────────────────────────────────────────
+  gitea-runner:
+    image: gitea/act_runner:${GITEA_RUNNER_VERSION:-0.2.11}
+    container_name: dar-gitea-runner
+    restart: unless-stopped
+    environment:
+      GITEA_INSTANCE_URL: "http://gitea:3000"
+      GITEA_RUNNER_REGISTRATION_TOKEN: "${GITEA_RUNNER_TOKEN:-}"
+      GITEA_RUNNER_NAME: dar-local-runner
+      GITEA_RUNNER_LABELS: "ubuntu-latest:docker://node:20"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitea-runner-data:/data
+    depends_on:
+      gitea:
+        condition: service_started
+    networks:
+      - lakehouse-net
+
+volumes:
+  gitea-data:
+  gitea-runner-data:
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default

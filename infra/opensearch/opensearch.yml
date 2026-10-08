@@ -1,0 +1,24 @@
+cluster.name: dar-lakehouse-search
+node.name: opensearch-node1
+network.host: 0.0.0.0
+discovery.type: single-node
+http.port: 9200
+transport.port: 9300
+
+# k-NN plugin settings (HNSW, Lucene engine default)
+knn.memory.circuit_breaker.enabled: true
+knn.memory.circuit_breaker.limit: 50%
+
+# Security plugin (required for admin password)
+plugins.security.disabled: false
+plugins.security.ssl.transport.pemcert_filepath: esnode.pem
+plugins.security.ssl.transport.pemkey_filepath: esnode-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: false
+plugins.security.allow_unsafe_democertificates: true
+plugins.security.allow_default_init_securityindex: true
+plugins.security.nodes_dn:
+  - "CN=opensearch-node1"
+plugins.security.authcz.admin_dn:
+  - "CN=admin"

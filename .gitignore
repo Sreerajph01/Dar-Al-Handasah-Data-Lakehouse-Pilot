@@ -1,0 +1,77 @@
+# Environment files — NEVER commit real secrets
+.env
+*.env.local
+secrets/
+
+# Generated credentials and certs
+infra/tls/*.key
+infra/tls/*.crt
+infra/tls/*.pem
+infra/tls/*.csr
+infra/keycloak/realm-export-generated.json
+
+# Docker volumes (bind-mounted data)
+volumes/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.lock
+!poetry.lock
+!package-lock.json
+
+# dbt
+uc2-warehouse-migration/dbt/target/
+uc2-warehouse-migration/dbt/dbt_packages/
+uc2-warehouse-migration/dbt/logs/
+
+# OpenTofu / Terraform
+tofu/.terraform/
+tofu/**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform.lock.hcl
+
+# Benchmark output
+benchmark/results/
+docs/BENCHMARK_REPORT_raw/
+
+# Generated docs (re-created by make)
+LICENSES.md
+docs/S3_CONFORMANCE.md
+docs/rfp/coverage.csv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Great Expectations
+uc2-warehouse-migration/quality/great_expectations/uncommitted/
+
+# Airflow
+airflow/logs/

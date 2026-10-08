@@ -1,0 +1,11 @@
+dar_lakehouse_uc2:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none
+      user: admin
+      host: dar-trino
+      port: 8080
+      catalog: iceberg
+      schema: silver
