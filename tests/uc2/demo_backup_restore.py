@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-# We'll use docker exec to run `mc` (MinIO Client) inside the trino or minio container, or just download mc.
+# We'll use docker exec or AWS CLI against the SeaweedFS S3 gateway.
 # A simpler way is to use the AWS CLI via docker.
 def run_aws(cmd):
     full_cmd = f"docker run --rm --network dar-lakehouse_default amazon/aws-cli --endpoint-url http://dar-seaweedfs-s3:8333 {cmd}"

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dar Al-Handasah — Engineering Knowledge & Document Discovery</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Navigation Bar -->
+    <header class="navbar">
+      <div class="brand-section">
+        <div class="logo-mark">DAR</div>
+        <div class="brand-text">
+          <span class="brand-title">DAR AL-HANDASAH</span>
+          <span class="brand-subtitle">Data Lakehouse • Engineering Search & RAG</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Live Persona / RBAC Switcher -->
+        <div class="persona-selector-container">
+          <label for="persona-select" class="persona-label">Active Persona (ACL):</label>
+          <select id="persona-select" class="persona-dropdown">
+            <option value="pm_executive" selected>👑 Executive / PM Director (All Access)</option>
+            <option value="pm_metro-01">🚇 Project Manager (METRO-01 Only)</option>
+            <option value="eng_structural">🏗️ Structural Engineer (Structural Only)</option>
+            <option value="external_auditor">🔍 External Auditor (Public / Audited Only)</option>
+          </select>
+        </div>
+        <button id="btn-trigger-ingest" class="btn btn-secondary">⚡ Sync / Ingest</button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="main-layout">
+      <!-- Left Sidebar: Filters & Facets -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>Faceted Discovery</h3>
+          <button id="btn-reset-filters" class="btn-link">Reset</button>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-title">Project Domain</label>
+          <div class="chip-container" id="project-chips">
+            <button class="chip active" data-project="">All Projects</button>
+            <button class="chip" data-project="METRO-01">METRO-01</button>
+            <button class="chip" data-project="BRIDGE-02">BRIDGE-02</button>
+            <button class="chip" data-project="HOSP-03">HOSP-03</button>
+            <button class="chip" data-project="HIGHRISE-05">HIGHRISE-05</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-title">Engineering Discipline</label>
+          <div class="chip-container" id="discipline-chips">
+            <button class="chip active" data-discipline="">All Disciplines</button>
+            <button class="chip" data-discipline="Structural">Structural</button>
+            <button class="chip" data-discipline="Civil">Civil</button>
+            <button class="chip" data-discipline="MEP">MEP</button>
+            <button class="chip" data-discipline="Contracts">Contracts</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <label class="filter-title">Document Format</label>
+          <div class="chip-container" id="doctype-chips">
+            <button class="chip active" data-doctype="">All Types</button>
+            <button class="chip" data-doctype="CAD Drawing">CAD (.dxf/.dwg)</button>
+            <button class="chip" data-doctype="BIM Model">BIM (.ifc/.rvt)</button>
+            <button class="chip" data-doctype="Correspondence">Emails (.eml)</button>
+            <button class="chip" data-doctype="Report/Specification">Specifications</button>
+          </div>
+        </div>
+
+        <!-- System Status Box -->
+        <div class="system-status-card">
+          <h4>Lakehouse Engines</h4>
+          <div class="status-indicator"><span class="dot green"></span> OpenSearch 3.3.2 (HNSW k-NN)</div>
+          <div class="status-indicator"><span class="dot green"></span> Apache Tika 2.9 (Text Extraction)</div>
+          <div class="status-indicator"><span class="dot green"></span> Presidio PII Engine (Active)</div>
+          <div class="status-indicator"><span class="dot green"></span> Ollama Qwen2.5-7B + nomic-embed</div>
+        </div>
+      </aside>
+
+      <!-- Center Content: Search & Results -->
+      <section class="content-area">
+        <!-- Search Box -->
+        <div class="search-hero">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-input" placeholder="Search engineering drawings, BIM elements, emails, specifications (e.g. 'tunnel reinforcement', 'pier foundation', 'change request')..." autofocus>
+            <button id="btn-search" class="btn btn-primary">Search</button>
+          </div>
+          <div class="search-options">
+            <label class="checkbox-label">
+              <input type="checkbox" id="hybrid-toggle" checked>
+              <span>Hybrid Search (BM25 Lexical + 768-dim Vector k-NN)</span>
+            </label>
+            <span id="search-stats" class="search-stats-text">Showing all accessible files</span>
+          </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div id="results-container" class="results-list">
+          <div class="empty-state">
+            <div class="empty-icon">📁</div>
+            <h3>Explore Project Archives</h3>
+            <p>Type a query or select a project above to discover engineering drawings, specs, and emails.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Drawer: Ask AI (RAG Assistant) -->
+      <aside class="rag-drawer">
+        <div class="rag-header">
+          <div class="rag-title-row">
+            <span class="rag-icon">🤖</span>
+            <h3>Engineering RAG Assistant</h3>
+          </div>
+          <p class="rag-subtitle">Grounded Q&A powered by local Qwen2.5-7B & OpenSearch</p>
+        </div>
+
+        <div class="rag-chat-history" id="rag-chat-history">
+          <div class="chat-message assistant-message">
+            <p>Welcome! I can answer factual questions about project specifications, change requests, and BIM/CAD drawings while respecting your security permissions.</p>
+            <div class="suggested-queries">
+              <button class="suggest-btn" data-q="What is the concrete grade and cover specified for the METRO-01 tunnel?">Concrete grade for METRO-01?</button>
+              <button class="suggest-btn" data-q="What was requested in Change Request CR-042 and what is its budget impact?">Change Request CR-042 details?</button>
+              <button class="suggest-btn" data-q="What elements and columns are defined in the BRIDGE-02 BIM model?">BRIDGE-02 BIM elements?</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="rag-input-container">
+          <textarea id="rag-input" rows="2" placeholder="Ask a technical question about project files..."></textarea>
+          <button id="btn-ask-rag" class="btn btn-primary btn-block">Ask AI Assistant</button>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Document Detail Modal -->
+    <div id="doc-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-group">
+            <h2 id="modal-title">Document Title</h2>
+            <span id="modal-badge" class="badge">Format</span>
+          </div>
+          <button id="modal-close" class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-meta-grid" id="modal-meta-grid">
+            <!-- Injected via JS -->
+          </div>
+          <div class="modal-text-container">
+            <h4>Extracted & Anonymized Content</h4>
+            <pre id="modal-content-text"></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

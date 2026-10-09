@@ -45,8 +45,8 @@ services:
   # ─── UC1 Search API (FastAPI + OpenSearch) ───────────────────────────────
   search-api:
     build:
-      context: ./uc1-search/api
-      dockerfile: Dockerfile
+      context: ./uc1-search
+      dockerfile: api/Dockerfile
     container_name: dar-search-api
     restart: unless-stopped
     environment:

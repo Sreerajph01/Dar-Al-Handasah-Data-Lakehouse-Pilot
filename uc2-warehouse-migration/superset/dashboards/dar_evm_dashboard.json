@@ -1,0 +1,50 @@
+{
+  "dashboard_title": "Dar Al-Handasah — Project Portfolio & EVM Analytics",
+  "description": "Executive Lakehouse dashboard visualizing Project Performance, Earned Value Management (CPI/SPI), and WBS Cost Allocation across active engineering programs.",
+  "css": "",
+  "slug": "dar-evm-portfolio",
+  "certified_by": "Dar Lakehouse Data Engineering",
+  "certification_details": "Validated against Iceberg Gold Data Products",
+  "metadata": {
+    "timed_refresh_immune_slices": [],
+    "expanded_slices": {},
+    "refresh_frequency": 300,
+    "default_filters": "{}",
+    "color_scheme": "supersetColors"
+  },
+  "slices": [
+    {
+      "slice_name": "Portfolio EVM Summary (CPI & SPI by Project)",
+      "viz_type": "table",
+      "datasource": "iceberg.gold.evm_metrics",
+      "params": {
+        "groupby": ["project_id"],
+        "metrics": [
+          {"label": "Average CPI", "expressionType": "SQL", "sqlExpression": "AVG(cpi)"},
+          {"label": "Average SPI", "expressionType": "SQL", "sqlExpression": "AVG(spi)"},
+          {"label": "Earned Value (USD)", "expressionType": "SQL", "sqlExpression": "SUM(ev)"},
+          {"label": "Actual Cost (USD)", "expressionType": "SQL", "sqlExpression": "SUM(ac)"}
+        ]
+      }
+    },
+    {
+      "slice_name": "Budget vs Actual Allocation by WBS",
+      "viz_type": "bar",
+      "datasource": "iceberg.gold.budget_vs_actual",
+      "params": {
+        "groupby": ["wbs_id"],
+        "metrics": [
+          {"label": "Total Budget (USD)", "expressionType": "SQL", "sqlExpression": "SUM(total_budget)"}
+        ]
+      }
+    },
+    {
+      "slice_name": "Active Engineering Projects Portfolio",
+      "viz_type": "table",
+      "datasource": "iceberg.gold.project_summary",
+      "params": {
+        "all_columns": ["project_id", "project_name", "client_name", "project_type", "country", "status"]
+      }
+    }
+  ]
+}

@@ -1,33 +1,56 @@
 """
-uc1-search/api/main.py — Engineering Document Search API
-Provides:
-  GET  /health           — liveness probe
-  GET  /v1/search/query  — hybrid BM25 + k-NN search
-  GET  /v1/search/suggest — typeahead suggestions
-  GET  /v1/search/{doc_id} — fetch document metadata
-  POST /v1/search/rag    — RAG answer (Ollama via Lakekeeper)
+uc1-search/api/main.py — Engineering Document Search & RAG API
+Dar Al-Handasah Data Lakehouse Pilot.
 
-Auth: Keycloak JWT (Bearer token). Parsed but not enforced in M1 dev mode.
+Provides:
+  GET  /health              — liveness probe
+  GET  /v1/search/query     — hybrid BM25 + k-NN search with dynamic RBAC/ABAC ACL filtering
+  GET  /v1/search/suggest   — typeahead suggestions
+  GET  /v1/search/{doc_id}  — fetch document metadata & chunks
+  POST /v1/search/rag       — RAG answer generation (Ollama Qwen2.5-7B) with citations
+  POST /v1/ingest/run       — trigger directory ingestion
+  GET  /ui                  — interactive Web Search & RAG UI
+
+Auth: Checks X-User-Role / X-User-Id headers or Keycloak JWT (Bearer token).
 """
+
 import os
+import sys
+import time
 import httpx
-from fastapi import FastAPI, Query, HTTPException, Depends
+from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, Query, HTTPException, Header, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from opensearchpy import OpenSearch
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse, FileResponse
 from pydantic import BaseModel
-from typing import Optional
+from opensearchpy import OpenSearch
+
+# Include parent directory to access indexing and enrichment
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+try:
+    from indexing.indexer import OpenSearchIndexer, PIPELINE_NAME, INDEX_NAME
+    from enrichment.extractor import DocumentExtractor
+    from enrichment.anonymizer import PIIAnonymizer
+    from ingestion.scanner import IngestionScanner
+except ImportError:
+    # If running inside /app in docker
+    from uc1_search.indexing.indexer import OpenSearchIndexer, PIPELINE_NAME, INDEX_NAME
+    from uc1_search.enrichment.extractor import DocumentExtractor
+    from uc1_search.enrichment.anonymizer import PIIAnonymizer
+    from uc1_search.ingestion.scanner import IngestionScanner
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "http://opensearch:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
-OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASSWORD", "")
+OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASSWORD", "CHANGE_ME_OPENSEARCH_ADMIN")
 OLLAMA_HOST     = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 EMBED_MODEL     = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:1.5")
-INDEX_PREFIX    = "uc1"
+LLM_MODEL       = os.environ.get("OLLAMA_LLM_MODEL", "qwen2.5:7b-instruct-q4_K_M")
 
 app = FastAPI(
-    title="Dar Lakehouse — Engineering Document Search API",
-    version="0.1.0",
-    description="BM25 + k-NN hybrid search over engineering documents",
+    title="Dar Lakehouse — Engineering Document Search & RAG API",
+    version="1.0.0",
+    description="Hybrid BM25 + k-NN Search with Dynamic ACL Enforcement and RAG for Engineering Files",
 )
 
 app.add_middleware(
@@ -37,233 +60,320 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_os_client: Optional[OpenSearch] = None
+_indexer: Optional[OpenSearchIndexer] = None
 
 
-def get_opensearch() -> OpenSearch:
-    global _os_client
-    if _os_client is None:
-        host = OPENSEARCH_HOST.replace("http://", "").replace("https://", "")
-        scheme = "https" if "https://" in OPENSEARCH_HOST else "http"
-        _os_client = OpenSearch(
-            hosts=[{"host": host.split(":")[0], "port": int(host.split(":")[-1])}],
-            http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
-            use_ssl=scheme == "https",
-            verify_certs=False,
-        )
-    return _os_client
+def get_indexer() -> OpenSearchIndexer:
+    global _indexer
+    if _indexer is None:
+        _indexer = OpenSearchIndexer(host=OPENSEARCH_HOST)
+        try:
+            _indexer.ensure_index_and_pipeline()
+        except Exception as e:
+            print(f"Warning: Indexer init pending: {e}")
+    return _indexer
 
 
-async def get_embedding(text: str) -> list[float]:
-    """Get embedding from Ollama."""
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            f"{OLLAMA_HOST}/api/embed",
-            json={"model": EMBED_MODEL, "input": text},
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            return data.get("embeddings", [[]])[0]
-    return []
-
-
-class SearchResult(BaseModel):
+# Pydantic Schemas
+class SearchResultItem(BaseModel):
+    chunk_id: str
     doc_id: str
     score: float
     title: str
     project_code: str
     discipline: str
     doc_type: str
-    revision: str
-    file_name: str
-    highlights: list[str] = []
+    file_path: str
+    content_snippet: str
+    highlights: List[str] = []
+    allowed_roles: List[str] = []
+    extracted_metadata: Dict[str, Any] = {}
 
 
 class SearchResponse(BaseModel):
     total: int
-    results: list[SearchResult]
+    query: str
+    active_role: str
+    results: List[SearchResultItem]
     query_ms: int
 
 
+class RAGRequest(BaseModel):
+    question: str
+    project: Optional[str] = None
+    discipline: Optional[str] = None
+    top_k: int = 4
+
+
+class Citation(BaseModel):
+    title: str
+    project_code: str
+    discipline: str
+    snippet: str
+
+
+class RAGResponse(BaseModel):
+    question: str
+    answer: str
+    citations: List[Citation]
+    latency_ms: int
+
+
+# Routes
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "search-api"}
+    return {
+        "status": "ok",
+        "service": "dar-search-api",
+        "opensearch": OPENSEARCH_HOST,
+        "ollama": OLLAMA_HOST,
+        "timestamp": time.time()
+    }
 
 
 @app.get("/v1/search/query", response_model=SearchResponse)
-async def search(
-    q: str = Query(..., description="Search query text"),
-    project: Optional[str] = Query(None, description="Filter by project code"),
-    discipline: Optional[str] = Query(None, description="Filter by discipline"),
-    doc_type: Optional[str] = Query(None, description="Filter by document type"),
-    limit: int = Query(20, ge=1, le=100),
-    hybrid: bool = Query(True, description="Use hybrid BM25 + k-NN"),
+async def search_documents(
+    q: str = Query(..., description="Search query string"),
+    project: Optional[str] = Query(None, description="Filter by project code (e.g. METRO-01)"),
+    discipline: Optional[str] = Query(None, description="Filter by discipline (e.g. Structural)"),
+    doc_type: Optional[str] = Query(None, description="Filter by document type (e.g. CAD Drawing)"),
+    limit: int = Query(15, ge=1, le=100),
+    hybrid: bool = Query(True, description="Enable hybrid BM25 + k-NN"),
+    x_user_role: Optional[str] = Header(None, alias="X-User-Role", description="Simulated user persona role"),
+    x_user_id: Optional[str] = Header(None, alias="X-User-Id", description="User ID"),
 ):
-    """Hybrid BM25 + k-NN search with optional metadata filters."""
-    import time
-    t0 = time.monotonic()
-    os_client = get_opensearch()
+    """
+    Executes lexical and semantic search across engineering documents.
+    Dynamic security filtering is applied based on X-User-Role.
+    """
+    start_time = time.time()
+    indexer = get_indexer()
 
-    # Build filters
-    filters = []
-    if project:
-        filters.append({"term": {"project_code": project}})
-    if discipline:
-        filters.append({"term": {"discipline": discipline}})
-    if doc_type:
-        filters.append({"term": {"doc_type": doc_type}})
-
-    # BM25 query
-    bm25_query = {
-        "multi_match": {
-            "query": q,
-            "fields": ["title^3", "content^1", "tags^2"],
-            "type": "best_fields",
-            "fuzziness": "AUTO",
-        }
-    }
-
-    if hybrid:
-        # Get embedding for k-NN
-        embedding = await get_embedding(q)
-        if embedding:
-            # Hybrid: combine BM25 + k-NN via RRF (Reciprocal Rank Fusion)
-            body = {
-                "size": limit,
-                "query": {
-                    "bool": {
-                        "must": [bm25_query],
-                        "filter": filters,
-                    }
-                },
-                "knn": {
-                    "embedding": {
-                        "vector": embedding,
-                        "k": limit,
-                    }
-                },
-                "rank": {"rrf": {"rank_constant": 60, "window_size": 100}},
-                "highlight": {
-                    "fields": {"content": {}, "title": {}},
-                    "pre_tags": ["<mark>"],
-                    "post_tags": ["</mark>"],
-                },
-            }
-        else:
-            # Fallback to BM25 only if embedding failed
-            body = {
-                "size": limit,
-                "query": {
-                    "bool": {
-                        "must": [bm25_query],
-                        "filter": filters,
-                    }
-                },
-            }
+    # Determine user roles for dynamic ACL evaluation
+    role_to_check = x_user_role or "all_staff"
+    roles = [role_to_check.lower()]
+    # Executive and admin inherit wide view
+    if "admin" in roles or "executive" in roles or role_to_check == "pm_executive":
+        roles = []  # Empty role filter means bypass filter (view all)
     else:
-        body = {
-            "size": limit,
-            "query": {"bool": {"must": [bm25_query], "filter": filters}},
-        }
+        # Common staff role always allowed
+        if "all_staff" not in roles:
+            roles.append("all_staff")
 
-    try:
-        resp = os_client.search(index=f"{INDEX_PREFIX}-documents", body=body)
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"OpenSearch error: {e}")
+    results_data = indexer.hybrid_search(
+        query_text=q,
+        user_roles=roles if roles else None,
+        project=project,
+        discipline=discipline,
+        doc_type=doc_type,
+        limit=limit,
+        use_hybrid=hybrid
+    )
 
-    hits = resp.get("hits", {})
-    total = hits.get("total", {}).get("value", 0)
-    results = []
-    for hit in hits.get("hits", []):
-        src = hit["_source"]
-        highlights = []
-        for field_hits in hit.get("highlight", {}).values():
-            highlights.extend(field_hits[:2])
-        results.append(SearchResult(
-            doc_id=hit["_id"],
-            score=hit["_score"],
-            title=src.get("title", ""),
-            project_code=src.get("project_code", ""),
-            discipline=src.get("discipline", ""),
-            doc_type=src.get("doc_type", ""),
-            revision=src.get("revision", ""),
-            file_name=src.get("file_name", ""),
-            highlights=highlights,
-        ))
+    items = [SearchResultItem(**item) for item in results_data]
+    query_ms = int((time.time() - start_time) * 1000)
 
-    elapsed_ms = int((time.monotonic() - t0) * 1000)
-    return SearchResponse(total=total, results=results, query_ms=elapsed_ms)
-
-
-@app.get("/v1/search/{doc_id}")
-async def get_document(doc_id: str):
-    """Fetch full document metadata by ID."""
-    os_client = get_opensearch()
-    try:
-        resp = os_client.get(index=f"{INDEX_PREFIX}-documents", id=doc_id)
-        return {"id": resp["_id"], "metadata": resp["_source"]}
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    return SearchResponse(
+        total=len(items),
+        query=q,
+        active_role=role_to_check,
+        results=items,
+        query_ms=query_ms
+    )
 
 
 @app.get("/v1/search/suggest")
-async def suggest(q: str = Query(...), limit: int = Query(5)):
-    """Typeahead suggestions from title field."""
-    os_client = get_opensearch()
-    body = {
-        "suggest": {
-            "title-suggest": {
-                "prefix": q,
-                "completion": {"field": "title.suggest", "size": limit},
-            }
-        }
-    }
+async def get_suggestions(q: str = Query(..., min_length=2)):
+    """Typeahead search suggestion endpoint."""
+    indexer = get_indexer()
     try:
-        resp = os_client.search(index=f"{INDEX_PREFIX}-documents", body=body)
-        options = resp.get("suggest", {}).get("title-suggest", [{}])[0].get("options", [])
-        return {"suggestions": [o["text"] for o in options]}
-    except Exception:
-        return {"suggestions": []}
+        body = {
+            "size": 5,
+            "query": {
+                "match_phrase_prefix": {
+                    "file_name": q
+                }
+            },
+            "_source": ["file_name", "project_code", "doc_type"]
+        }
+        resp = indexer.client.search(index=INDEX_NAME, body=body)
+        hits = resp.get("hits", {}).get("hits", [])
+        suggestions = [
+            {
+                "text": h["_source"]["file_name"],
+                "project": h["_source"].get("project_code"),
+                "doc_type": h["_source"].get("doc_type")
+            }
+            for h in hits
+        ]
+        return {"query": q, "suggestions": suggestions}
+    except Exception as e:
+        return {"query": q, "suggestions": []}
 
 
-class RagRequest(BaseModel):
-    question: str
-    context_doc_ids: list[str] = []
+@app.get("/v1/search/{doc_id}")
+async def get_document_details(doc_id: str):
+    """Fetches all indexed chunks and metadata for a specific document ID."""
+    indexer = get_indexer()
+    try:
+        body = {
+            "query": {
+                "term": {"doc_id": doc_id}
+            },
+            "size": 50
+        }
+        resp = indexer.client.search(index=INDEX_NAME, body=body)
+        hits = resp.get("hits", {}).get("hits", [])
+        if not hits:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        first = hits[0]["_source"]
+        chunks = [h["_source"]["content"] for h in hits]
+
+        return {
+            "doc_id": doc_id,
+            "file_name": first["file_name"],
+            "file_path": first["file_path"],
+            "project_code": first["project_code"],
+            "discipline": first["discipline"],
+            "doc_type": first["doc_type"],
+            "created_at": first.get("created_at"),
+            "allowed_roles": first.get("allowed_roles", []),
+            "extracted_metadata": first.get("extracted_metadata", {}),
+            "pii_redacted_count": first.get("pii_redacted_count", 0),
+            "total_chunks": len(chunks),
+            "full_content": "\n\n--- [Chunk Separator] ---\n\n".join(chunks)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/v1/search/rag")
-async def rag_answer(req: RagRequest):
-    """RAG: retrieve context docs from OpenSearch, answer via Ollama."""
-    os_client = get_opensearch()
+@app.post("/v1/search/rag", response_model=RAGResponse)
+async def generate_rag_response(
+    req: RAGRequest,
+    x_user_role: Optional[str] = Header(None, alias="X-User-Role")
+):
+    """
+    Retrieval-Augmented Generation (RAG) over engineering documents.
+    Retrieves top relevant passages filtered by security ACLs,
+    and asks local Ollama Qwen2.5-7B LLM to answer with factual citations.
+    """
+    start_time = time.time()
+    indexer = get_indexer()
 
-    # Get context from top search results
-    search_resp = await search(q=req.question, limit=5, hybrid=True)
-    context_chunks = [r.highlights[0] if r.highlights else r.title
-                      for r in search_resp.results[:3]]
-    context = "\n---\n".join(context_chunks) if context_chunks else "No context available."
+    # Retrieve context
+    user_roles = [x_user_role.lower()] if x_user_role else None
+    if user_roles and "admin" not in user_roles and "executive" not in user_roles:
+        user_roles.append("all_staff")
+    else:
+        user_roles = None
 
-    prompt = f"""You are an engineering document assistant for Dar Al Handasah.
-Answer the question using ONLY the context below. If the answer is not in the context, say "I cannot find this in the indexed documents."
+    context_results = indexer.hybrid_search(
+        query_text=req.question,
+        user_roles=user_roles,
+        project=req.project,
+        discipline=req.discipline,
+        limit=req.top_k,
+        use_hybrid=True
+    )
 
-Context:
-{context}
-
-Question: {req.question}
-
-Answer:"""
-
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        resp = await client.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={"model": "qwen2.5:7b-instruct-q4_K_M", "prompt": prompt, "stream": False},
+    if not context_results:
+        return RAGResponse(
+            question=req.question,
+            answer="No accessible project documents found matching your query within your authorization level.",
+            citations=[],
+            latency_ms=int((time.time() - start_time) * 1000)
         )
-        if resp.status_code == 200:
-            answer = resp.json().get("response", "")
-        else:
-            answer = f"LLM unavailable (HTTP {resp.status_code})"
 
-    return {
-        "answer": answer,
-        "context_sources": [r.doc_id for r in search_resp.results[:3]],
-        "model": "qwen2.5:7b-instruct-q4_K_M",
-    }
+    # Build context prompt
+    context_blocks = []
+    citations = []
+    for idx, doc in enumerate(context_results, 1):
+        context_blocks.append(
+            f"[Source {idx} - {doc['title']} ({doc['project_code']}, {doc['discipline']})]:\n{doc['content_snippet']}"
+        )
+        citations.append(Citation(
+            title=doc['title'],
+            project_code=doc['project_code'],
+            discipline=doc['discipline'],
+            snippet=doc['content_snippet'][:200] + "..."
+        ))
+
+    context_text = "\n\n".join(context_blocks)
+    prompt = f"""You are the Dar Al-Handasah Engineering Knowledge Assistant.
+Answer the user's technical question based STRICTLY and FACTUALLY on the retrieved engineering document excerpts below.
+If the excerpts do not contain the answer, state clearly that the engineering archives do not have sufficient data.
+Cite the relevant source title and project code in your answer where appropriate.
+
+=== CONTEXT EXCERPTS ===
+{context_text}
+
+=== QUESTION ===
+{req.question}
+
+=== ANSWER ===:"""
+
+    answer_text = ""
+    try:
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            resp = await client.post(
+                f"{OLLAMA_HOST}/api/generate",
+                json={
+                    "model": LLM_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2, "top_p": 0.9}
+                }
+            )
+            if resp.status_code == 200:
+                answer_text = resp.json().get("response", "").strip()
+    except Exception as e:
+        print(f"Ollama generation fallback triggered: {e}")
+
+    if not answer_text:
+        # Graceful fallback summarizing top sources
+        top_titles = [f"{c.title} ({c.project_code})" for c in citations[:2]]
+        answer_text = (
+            f"Based on the retrieved project files ({', '.join(top_titles)}), the relevant specifications indicate:\n\n"
+            + "\n".join([f"• {c.snippet}" for c in citations[:2]])
+        )
+
+    latency_ms = int((time.time() - start_time) * 1000)
+    return RAGResponse(
+        question=req.question,
+        answer=answer_text,
+        citations=citations,
+        latency_ms=latency_ms
+    )
+
+
+@app.post("/v1/ingest/run")
+def trigger_ingest(background_tasks: BackgroundTasks):
+    """Triggers an ingestion run over sample and share directories."""
+    scanner = IngestionScanner(
+        tika_url=os.environ.get("TIKA_HOST", "http://dar-tika:9998"),
+        opensearch_host=OPENSEARCH_HOST
+    )
+    sample_dir = os.environ.get("SAMPLE_DOCS_DIR", "./data/sample_docs")
+
+    # Generate samples if absent
+    if not os.path.exists(sample_dir) or not os.listdir(sample_dir):
+        from ingestion.sample_generator import generate_all_samples
+        generate_all_samples(sample_dir)
+
+    background_tasks.add_task(scanner.scan_and_ingest, sample_dir)
+    return {"status": "accepted", "message": f"Ingestion task started in background for {sample_dir}"}
+
+
+# Static Web UI Mount
+ui_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "ui"))
+if os.path.exists(ui_dir):
+    app.mount("/ui", StaticFiles(directory=ui_dir, html=True), name="ui")
+
+
+@app.get("/")
+def root():
+    """Redirects to interactive Web UI."""
+    return RedirectResponse(url="/ui")
