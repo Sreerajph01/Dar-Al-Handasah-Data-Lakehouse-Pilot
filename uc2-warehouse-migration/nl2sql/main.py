@@ -123,7 +123,7 @@ def validate_and_sanitize_sql(sql_query: str) -> str:
         raise ValueError("Security Violation: Only read-only SELECT queries are permitted.")
 
     # Guard against DDL/DML mutation keywords
-    forbidden = [exp.Drop, exp.Delete, exp.Insert, exp.Update, exp.AlterTable, exp.TruncateTable]
+    forbidden = [exp.Drop, exp.Delete, exp.Insert, exp.Update, exp.Alter, exp.TruncateTable]
     for expr_type in forbidden:
         if parsed.find(expr_type):
             raise ValueError(f"Security Violation: Query contains prohibited operation {expr_type.__name__}.")

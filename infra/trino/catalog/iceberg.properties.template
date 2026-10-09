@@ -4,7 +4,8 @@
 
 connector.name=iceberg
 iceberg.catalog.type=rest
-iceberg.rest-catalog.uri=http://lakekeeper:8181/catalog/default/dar-lakehouse-${ENVIRONMENT}
+iceberg.rest-catalog.uri=http://lakekeeper:8181/catalog
+iceberg.rest-catalog.warehouse=dar-lakehouse-${ENVIRONMENT}
 
 # S3 file I/O — path-style required by SeaweedFS
 fs.native-s3.enabled=true

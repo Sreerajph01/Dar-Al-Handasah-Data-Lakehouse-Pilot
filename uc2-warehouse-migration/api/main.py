@@ -140,7 +140,7 @@ def list_projects(
     if country:
         query += f" AND country = '{country}'"
 
-    query += f" ORDER BY project_id LIMIT {limit} OFFSET {offset}"
+    query += f" ORDER BY project_id OFFSET {offset} LIMIT {limit}"
 
     try:
         cursor.execute(query)

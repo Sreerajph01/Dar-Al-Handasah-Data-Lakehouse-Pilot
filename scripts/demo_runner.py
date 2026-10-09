@@ -94,7 +94,7 @@ def demo_use_case_1():
             f"{search_api}/v1/search/rag",
             json={"question": rag_q, "project": "HOSP-03", "top_k": 3},
             headers={"X-User-Role": "pm_executive"},
-            timeout=30
+            timeout=120
         ).json()
         print(f"  {BOLD}AI Answer:{RESET}\n  {r.get('answer')}\n")
         print(f"  Citations:")
@@ -107,10 +107,10 @@ def demo_use_case_1():
 def demo_use_case_2():
     print_banner("USE CASE 2: STRUCTURED WAREHOUSE MIGRATION & MEDALLION LAKEHOUSE")
 
-    trino_host = os.environ.get("TRINO_HOST_ACCESS", os.environ.get("TRINO_HOST", "localhost"))
-    trino_port = int(os.environ.get("TRINO_PORT", "18080"))
-    data_api = os.environ.get("DATA_API_URL", "http://localhost:8092")
-    nl2sql_url = os.environ.get("NL2SQL_URL", "http://localhost:8095")
+    trino_host = os.environ.get("TRINO_HOST_ACCESS", os.environ.get("TRINO_HOST", "dar-trino"))
+    trino_port = int(os.environ.get("TRINO_PORT", "8080"))
+    data_api = os.environ.get("DATA_API_URL", "http://dar-data-api:8000")
+    nl2sql_url = os.environ.get("NL2SQL_URL", "http://dar-nl2sql:8000")
 
     # 1. Medallion Table Verification
     print(f"{BOLD}[1. Medallion Architecture: Bronze -> Silver -> Gold (Iceberg)]{RESET}")
@@ -168,7 +168,7 @@ def demo_use_case_2():
         resp = requests.post(
             f"{nl2sql_url}/v1/query",
             json={"query": nl_q, "execute": True},
-            timeout=25
+            timeout=120
         ).json()
         print(f"  Generated SQL: {CYAN}{resp.get('sql')}{RESET}")
         print(f"  Safety Validated: {GREEN}{resp.get('is_safe')}{RESET} (Read-only SELECT guaranteed by SQLGlot)")

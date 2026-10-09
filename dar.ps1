@@ -19,12 +19,16 @@ function Invoke-Logged {
     if (-not $commit) { $commit = 'NO_GIT' }
     $script:LastExitCode = 0
     $output = @()
+    $oldEAP = $ErrorActionPreference
     try {
+        $ErrorActionPreference = 'Continue'
         $output = @(& $Action 2>&1 | ForEach-Object { $_.ToString() })
         if ($global:LASTEXITCODE -is [int]) { $script:LastExitCode = $global:LASTEXITCODE }
     } catch {
         $output += $_.ToString()
         $script:LastExitCode = 1
+    } finally {
+        $ErrorActionPreference = $oldEAP
     }
     $content = @('---',"Command: $Command","Timestamp: $stamp","Git Commit: $commit",'---') + $output + "Exit code: $($script:LastExitCode)"
     Set-Content -LiteralPath $path -Value $content -Encoding UTF8
@@ -224,7 +228,7 @@ try {
         'smoke-m2' { Invoke-Docker -Name 'smoke-m2' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','PG_DW_HOST=postgres-dw','-e','TRINO_HOST=trino','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pytest==8.3.3 trino==0.329.0 requests==2.32.3 psycopg2-binary==2.9.9 && pytest -q tests/uc2/test_lakekeeper_contract.py && python tests/uc2/test_m2_gate.py') }
         'smoke-m3' { Invoke-Docker -Name 'smoke-m3' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','PG_DW_HOST=postgres-dw','-e','TRINO_HOST=trino','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pytest==8.3.3 trino==0.329.0 requests==2.32.3 psycopg2-binary==2.9.9 && python tests/uc2/test_m3_gate.py') }
         'benchmark' { Invoke-Compose -Name 'benchmark-up' -Compose (@('-f','docker-compose.yml','-f','docker-compose.benchmark.yml')) -Arguments @('up','-d'); Invoke-Docker -Name 'benchmark-report' -Arguments @('run','--rm','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','python','benchmark/report_generator.py') }
-        'smoke-uc1' { Invoke-Docker -Name 'smoke-uc1' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','OPENSEARCH_HOST=http://opensearch:9200','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pytest==8.3.3 opensearch-py==2.7.1 httpx==0.27.2 ezdxf==1.3.4 && pytest -v tests/uc1/test_uc1_search_gate.py') }
+        'smoke-uc1' { Invoke-Docker -Name 'smoke-uc1' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','OPENSEARCH_HOST=http://opensearch:9200','-e','OPENSEARCH_PASSWORD=DarLakehouseAdmin123!','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pytest==8.3.3 opensearch-py==2.7.1 httpx==0.27.2 ezdxf==1.3.4 && pytest -v tests/uc1/test_uc1_search_gate.py') }
         'smoke-uc2' { Invoke-Docker -Name 'smoke-uc2' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','TRINO_HOST=trino','-e','TRINO_PORT=8080','-e','DATA_API_URL=http://dar-data-api:8000','-e','NL2SQL_URL=http://dar-nl2sql:8000','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pytest==8.3.3 trino==0.329.0 requests==2.32.3 sqlglot==25.19.0 && pytest -v tests/uc2/test_uc2_migration_gate.py') }
         'demo' { Invoke-Docker -Name 'demo' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','SEARCH_API_URL=http://dar-search-api:8000','-e','DATA_API_URL=http://dar-data-api:8000','-e','NL2SQL_URL=http://dar-nl2sql:8000','-e','TRINO_HOST=trino','-e','TRINO_PORT=8080','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check requests==2.32.3 trino==0.329.0 && python scripts/demo_runner.py') }
         'clean' { if (Test-Path '.venv') { Remove-Item -Recurse -Force '.venv' }; if (Test-Path '.pytest_cache') { Remove-Item -Recurse -Force '.pytest_cache' }; Write-Host 'Cleaned local test artifacts.' }

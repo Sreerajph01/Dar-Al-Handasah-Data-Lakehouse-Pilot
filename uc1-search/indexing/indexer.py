@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "http://opensearch:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
-OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASSWORD", "CHANGE_ME_OPENSEARCH_ADMIN")
+OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASSWORD", os.environ.get("OPENSEARCH_INITIAL_ADMIN_PASSWORD", "DarLakehouseAdmin123!"))
 OLLAMA_HOST     = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
 EMBED_MODEL     = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:1.5")
 INDEX_NAME      = "uc1_documents"

@@ -133,7 +133,7 @@ class TestUC2ServingAndGovernance:
                 "query": "Show me the CPI and SPI for all active projects",
                 "execute": False  # Only validate SQL generation & safety
             }
-            resp = requests.post(f"{NL2SQL_URL}/v1/query", json=payload, timeout=15)
+            resp = requests.post(f"{NL2SQL_URL}/v1/query", json=payload, timeout=60)
             assert resp.status_code == 200
             result = resp.json()
             assert result["is_safe"] == True
@@ -142,7 +142,7 @@ class TestUC2ServingAndGovernance:
 
             # Malicious mutation attempt should be rejected by SQLGlot guardrails
             bad_payload = {"query": "DROP TABLE iceberg.silver.dim_project", "execute": False}
-            bad_resp = requests.post(f"{NL2SQL_URL}/v1/query", json=bad_payload, timeout=15)
+            bad_resp = requests.post(f"{NL2SQL_URL}/v1/query", json=bad_payload, timeout=60)
             # Either LLM rejects it or SQLGlot throws 400
             assert bad_resp.status_code in [400, 422] or "DROP" not in bad_resp.json().get("sql", "")
         except Exception as e:

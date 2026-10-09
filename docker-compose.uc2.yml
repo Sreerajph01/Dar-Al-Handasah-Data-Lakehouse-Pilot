@@ -62,7 +62,7 @@ services:
     restart: unless-stopped
     environment:
       TRINO_HOST: trino
-      TRINO_PORT: "${TRINO_PORT:-18080}"
+      TRINO_PORT: "${TRINO_INTERNAL_PORT:-8080}"
       TRINO_CATALOG: "${TRINO_DEFAULT_CATALOG:-iceberg}"
       TRINO_SCHEMA: "${TRINO_DEFAULT_SCHEMA:-gold}"
       KEYCLOAK_URL: "http://keycloak:8444"
@@ -97,7 +97,7 @@ services:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_LLM_MODEL: "${OLLAMA_LLM_MODEL:-qwen2.5:7b-instruct-q4_K_M}"
       TRINO_HOST: trino
-      TRINO_PORT: "${TRINO_PORT:-18080}"
+      TRINO_PORT: "${TRINO_INTERNAL_PORT:-8080}"
       TRINO_CATALOG: "${TRINO_DEFAULT_CATALOG:-iceberg}"
     ports:
       - "8095:8000"

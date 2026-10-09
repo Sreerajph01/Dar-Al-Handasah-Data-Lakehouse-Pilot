@@ -6,6 +6,7 @@ gold_budget AS (
     SELECT SUM(CAST(amount AS double)) AS gold_total FROM {{ ref('fact_financials') }}
 )
 SELECT
+    silver_total AS source_total,
     silver_total,
     gold_total,
     ABS(silver_total - gold_total) AS difference,
