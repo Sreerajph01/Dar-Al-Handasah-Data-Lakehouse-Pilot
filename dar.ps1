@@ -188,7 +188,7 @@ function Invoke-Health {
 }
 
 function Show-Help {
-    @('help','up','up-lite','down','reset -Force','seed','health','verify','simulate-day','backup','restore','licenses','lint-branding','lint-code','lint','venv','generate-secrets','tofu-init','tofu-plan','tofu-apply','s3-conformance','smoke-m1','verify-opensearch','verify-opa','traceability','smoke-m2','smoke-m3','benchmark','demo','clean') | ForEach-Object { Write-Host ('.\dar.ps1 ' + $_) }
+    @('help','up','up-lite','down','reset -Force','seed','health','verify','simulate-day','backup','restore','licenses','lint-branding','lint-code','lint','venv','generate-secrets','tofu-init','tofu-plan','tofu-apply','s3-conformance','smoke-m1','verify-opensearch','verify-opa','traceability','smoke-m2','smoke-m3','smoke-uc1','smoke-uc2','benchmark','demo','clean') | ForEach-Object { Write-Host ('.\dar.ps1 ' + $_) }
 }
 
 Push-Location $script:Root
