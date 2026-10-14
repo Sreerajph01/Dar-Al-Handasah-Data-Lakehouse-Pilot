@@ -38,15 +38,8 @@ x-airflow-common-env: &airflow-common-env
     {"type": "http", "url": "${OPENLINEAGE_URL}"}
   AIRFLOW__OPENLINEAGE__NAMESPACE: "dar-lakehouse-${ENVIRONMENT}"
   # S3 for logs (optional — uses local by default)
-  _PIP_ADDITIONAL_REQUIREMENTS: >-
-    apache-airflow-providers-trino==5.6.0
-    apache-airflow-providers-postgres==5.11.3
-    apache-airflow-providers-amazon==8.28.0
-    apache-airflow-providers-fab==1.3.0
-    dlt sqlalchemy trino psycopg2-binary pandas requests pyarrow
-    openlineage-airflow==1.22.0
-    dbt-trino==1.8.3
-    dlt==0.5.4
+  # _PIP_ADDITIONAL_REQUIREMENTS removed — deps baked into infra/airflow/Dockerfile
+  # to prevent pip ResolutionTooDeep failures at container startup.
   # DAG Variables
   PG_META_HOST: "dar-postgres-meta"
   PG_META_DB: "${PG_META_DB}"
@@ -373,7 +366,12 @@ services:
   # AIRFLOW — webserver (LocalExecutor, no Redis)
   # ═══════════════════════════════════════════════════════════════════════════
   airflow-webserver:
-    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+      args:
+        AIRFLOW_VERSION: ${AIRFLOW_VERSION:-2.10.2}
+    image: dar-airflow:${AIRFLOW_VERSION:-2.10.2}
     container_name: dar-airflow-webserver
     restart: unless-stopped
     environment:
@@ -400,7 +398,12 @@ services:
       - lakehouse-net
 
   airflow-scheduler:
-    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+      args:
+        AIRFLOW_VERSION: ${AIRFLOW_VERSION:-2.10.2}
+    image: dar-airflow:${AIRFLOW_VERSION:-2.10.2}
     container_name: dar-airflow-scheduler
     restart: unless-stopped
     environment:
@@ -426,7 +429,12 @@ services:
   # One-shot init: db migrate + create admin user
   # Uses the documented Airflow 2.x Docker init pattern
   airflow-init:
-    image: apache/airflow:${AIRFLOW_VERSION:-2.10.2}
+    build:
+      context: ./infra/airflow
+      dockerfile: Dockerfile
+      args:
+        AIRFLOW_VERSION: ${AIRFLOW_VERSION:-2.10.2}
+    image: dar-airflow:${AIRFLOW_VERSION:-2.10.2}
     container_name: dar-airflow-init
     environment:
       <<: *airflow-common-env
@@ -528,7 +536,7 @@ services:
       - lakehouse-net
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # OLLAMA — LLM + embedding runtime (CPU default; GPU via opt-gpu profile)
+  # OLLAMA — LLM + embedding runtime (GPU via NVIDIA runtime; fallback CPU)
   # ═══════════════════════════════════════════════════════════════════════════
   ollama:
     image: ollama/ollama:${OLLAMA_VERSION:-0.3.14}
@@ -538,6 +546,17 @@ services:
       - ollama-data:/root/.ollama
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
+    environment:
+      OLLAMA_KEEP_ALIVE: "15m"
+      OLLAMA_GPU_OVERHEAD: "0"
+      OLLAMA_MAX_LOADED_MODELS: "2"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD-SHELL", "ollama list || exit 1"]
       interval: 20s

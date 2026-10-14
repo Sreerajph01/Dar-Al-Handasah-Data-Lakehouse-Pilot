@@ -18,10 +18,14 @@ RELATIVE_THIS="${THIS_SCRIPT#${REPO_ROOT}/}"
 
 echo "=== Branding Lint ==="
 echo "Scanning: ${REPO_ROOT}"
-echo "Forbidden terms: minio (case-insensitive)"
+echo "Checking for forbidden object-store product names (pattern dynamically compiled)"
 echo ""
 
-FORBIDDEN_PATTERN="[Mm][Ii][Nn][Ii][Oo]"
+# Pattern is built at runtime from fragments to avoid the name appearing
+# literally in this script (which would self-fail the lint).
+FRAGMENT1="[Mm][Ii][Nn]"
+FRAGMENT2="[Ii][Oo]"
+FORBIDDEN_PATTERN="${FRAGMENT1}${FRAGMENT2}"
 
 FOUND=$(grep \
   --recursive \
@@ -60,11 +64,14 @@ FOUND=$(grep \
   || true)
 
 if [[ -n "${FOUND}" ]]; then
-  echo "❌ BRANDING LINT FAILED — forbidden term found:"
+  echo "❌ BRANDING LINT FAILED — forbidden term found in the following files:"
   echo ""
-  echo "${FOUND}"
+  # Print only file:line references, not the matched content (which would echo the term)
+  echo "${FOUND}" | sed 's/:.*$//' | sort -u | while read -r f; do
+    echo "  - ${f}"
+  done
   echo ""
-  echo "Remove all references to the forbidden term and re-run."
+  echo "Remove all references to the forbidden object-store product name and re-run."
   exit 1
 else
   echo "✅ Branding lint PASSED — no forbidden terms found."

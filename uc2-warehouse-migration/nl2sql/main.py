@@ -3,8 +3,13 @@ uc2-warehouse-migration/nl2sql/main.py — Natural Language to SQL Microservice
 Dar Al-Handasah Data Lakehouse Pilot.
 
 Translates business user natural language queries into valid Trino SQL over Iceberg
-Silver and Gold data products. Uses SQLGlot for AST safety verification (read-only enforcement)
-and Ollama Qwen2.5-7B for query formulation.
+Silver and Gold data products. Uses SQLGlot for AST safety verification (read-only
+enforcement) and Ollama Qwen2.5-7B for query formulation.
+
+Performance notes:
+  - OLLAMA_KEEP_ALIVE=15m keeps model hot between calls (set in docker-compose.yml)
+  - Timeout raised to 120s to accommodate CPU-mode inference; drops to ~3s on GPU
+  - Few-shot examples guide the model toward correct SQL patterns
 """
 
 import os
@@ -14,21 +19,27 @@ import httpx
 import sqlglot
 from sqlglot import exp
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import trino
+import logging
 
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
-OLLAMA_MODEL = os.environ.get("OLLAMA_LLM_MODEL", "qwen2.5:7b-instruct-q4_K_M")
-TRINO_HOST = os.environ.get("TRINO_HOST", "trino")
-TRINO_PORT = int(os.environ.get("TRINO_PORT", "8080"))
-TRINO_USER = os.environ.get("TRINO_USER", "admin")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nl2sql")
+
+OLLAMA_HOST   = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
+OLLAMA_MODEL  = os.environ.get("OLLAMA_LLM_MODEL", "qwen2.5:7b-instruct-q4_K_M")
+TRINO_HOST    = os.environ.get("TRINO_HOST", "trino")
+TRINO_PORT    = int(os.environ.get("TRINO_PORT", "8080"))
+TRINO_USER    = os.environ.get("TRINO_USER", "admin")
 TRINO_CATALOG = os.environ.get("TRINO_CATALOG", "iceberg")
+# Maximum rows returned; protects against accidental large scans
+MAX_ROWS      = int(os.environ.get("NL2SQL_MAX_ROWS", "100"))
 
 app = FastAPI(
     title="Dar Lakehouse — Natural Language to SQL Service",
-    version="1.0.0",
+    version="1.1.0",
     description="Text-to-SQL engine powered by Ollama and SQLGlot validation for Trino Iceberg data",
 )
 
@@ -39,54 +50,95 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Schema context + few-shot examples ────────────────────────────────────────
 SCHEMA_CONTEXT = """
 === AVAILABLE TRINO ICEBERG TABLES ===
-1. Table: iceberg.silver.dim_project
-   Columns:
-     - project_id (VARCHAR): Unique project code (e.g. 'METRO-01', 'BRIDGE-02')
-     - project_name (VARCHAR): Full name of the engineering project
-     - client_name (VARCHAR): Name of the client entity
-     - project_type (VARCHAR): Type (e.g. 'Infrastructure', 'Healthcare', 'High-Rise')
-     - country (VARCHAR): Country of execution
-     - status (VARCHAR): Project lifecycle status ('Active', 'Completed', 'Planning')
-     - is_current (BOOLEAN): TRUE for active current record
+1. iceberg.silver.dim_project
+   project_id (VARCHAR), project_name (VARCHAR), client_name (VARCHAR),
+   project_type (VARCHAR), country (VARCHAR), status (VARCHAR),
+   is_current (BOOLEAN) — TRUE for the active SCD2 record
 
-2. Table: iceberg.silver.dim_wbs
-   Columns:
-     - wbs_id (VARCHAR): Unique WBS identifier
-     - project_id (VARCHAR): Parent project code
-     - wbs_code (VARCHAR): Hierarchical code (e.g. '1.01.02')
-     - wbs_name (VARCHAR): Descriptive task name
-     - discipline (VARCHAR): Engineering discipline ('Structural', 'Civil', 'MEP')
+2. iceberg.silver.dim_wbs
+   wbs_id (VARCHAR), project_id (VARCHAR), wbs_code (VARCHAR),
+   wbs_name (VARCHAR), discipline (VARCHAR)
 
-3. Table: iceberg.silver.fact_budget
-   Columns:
-     - budget_id (VARCHAR): Unique budget line identifier
-     - wbs_id (VARCHAR): Associated WBS code
-     - amount (DOUBLE): Budget amount normalized to USD
-     - currency (VARCHAR): Always 'USD' in silver
+3. iceberg.silver.fact_budget
+   budget_id (VARCHAR), wbs_id (VARCHAR),
+   amount (DOUBLE) — USD-normalised, currency (VARCHAR) = 'USD'
 
-4. Table: iceberg.gold.evm_metrics
-   Columns:
-     - project_id (VARCHAR): Project code
-     - date_id (VARCHAR): Snapshot date
-     - ev (DOUBLE): Earned Value (USD)
-     - pv (DOUBLE): Planned Value (USD)
-     - ac (DOUBLE): Actual Cost (USD)
-     - bac (DOUBLE): Budget at Completion (USD)
-     - sv (DOUBLE): Schedule Variance (EV - PV)
-     - cv (DOUBLE): Cost Variance (EV - AC)
-     - spi (DOUBLE): Schedule Performance Index (EV / PV)
-     - cpi (DOUBLE): Cost Performance Index (EV / AC)
-     - eac (DOUBLE): Estimate at Completion
-     - vac (DOUBLE): Variance at Completion
+4. iceberg.silver.fact_timesheet
+   timesheet_id (VARCHAR), employee_id (VARCHAR), wbs_id (VARCHAR),
+   hours (DOUBLE), cost (DOUBLE), period_date (VARCHAR)
 
-5. Table: iceberg.gold.reconciliation
-   Columns:
-     - source_total (DOUBLE): Total budget from legacy SQL Server DW
-     - gold_total (DOUBLE): Total budget calculated in Lakehouse
-     - difference (DOUBLE): Absolute variance
-     - is_within_tolerance (BOOLEAN): TRUE if variance < 0.01 USD
+5. iceberg.gold.evm_metrics
+   project_id (VARCHAR), date_id (VARCHAR),
+   ev (DOUBLE), pv (DOUBLE), ac (DOUBLE), bac (DOUBLE),
+   sv (DOUBLE)  — Schedule Variance  = EV - PV,
+   cv (DOUBLE)  — Cost Variance      = EV - AC,
+   spi (DOUBLE) — Schedule Performance Index = EV / PV,
+   cpi (DOUBLE) — Cost Performance Index     = EV / AC,
+   eac (DOUBLE) — Estimate at Completion,
+   vac (DOUBLE) — Variance at Completion
+
+6. iceberg.gold.budget_vs_actual
+   wbs_id (VARCHAR), total_budget (DOUBLE), currency (VARCHAR)
+
+7. iceberg.gold.project_summary
+   project_id (VARCHAR), project_name (VARCHAR), total_budget (DOUBLE),
+   total_cost (DOUBLE), status (VARCHAR)
+
+8. iceberg.gold.reconciliation
+   source_total (DOUBLE), gold_total (DOUBLE), quarantine_total (DOUBLE),
+   difference (DOUBLE), is_within_tolerance (BOOLEAN), reconciled_at (TIMESTAMP)
+
+=== FEW-SHOT EXAMPLES ===
+Q: List all projects with Cost Performance Index below 1.0
+A: SELECT project_id, MAX(date_id) AS latest_date, AVG(cpi) AS avg_cpi, AVG(spi) AS avg_spi
+   FROM iceberg.gold.evm_metrics
+   WHERE cpi < 1.0
+   GROUP BY project_id
+   ORDER BY avg_cpi ASC
+   LIMIT 50
+
+Q: Show me the CPI and SPI for all active projects
+A: SELECT e.project_id, p.project_name, e.date_id, e.cpi, e.spi
+   FROM iceberg.gold.evm_metrics e
+   JOIN iceberg.silver.dim_project p ON e.project_id = p.project_id
+   WHERE p.is_current = TRUE AND p.status = 'Active'
+     AND e.date_id = (SELECT MAX(date_id) FROM iceberg.gold.evm_metrics WHERE project_id = e.project_id)
+   ORDER BY e.project_id
+   LIMIT 50
+
+Q: What is the total budget by discipline?
+A: SELECT w.discipline, SUM(b.amount) AS total_budget_usd
+   FROM iceberg.silver.fact_budget b
+   JOIN iceberg.silver.dim_wbs w ON b.wbs_id = w.wbs_id
+   WHERE b.is_deleted = FALSE OR b.is_deleted IS NULL
+   GROUP BY w.discipline
+   ORDER BY total_budget_usd DESC
+   LIMIT 50
+
+Q: Which projects are over budget?
+A: SELECT project_id, total_budget, total_cost,
+          total_cost - total_budget AS overrun
+   FROM iceberg.gold.project_summary
+   WHERE total_cost > total_budget
+   ORDER BY overrun DESC
+   LIMIT 50
+"""
+
+SYSTEM_PROMPT = f"""You are an expert Trino SQL engineer for the Dar Al-Handasah Data Lakehouse.
+Translate the user's natural language question into a correct, read-only Trino SQL query.
+
+{SCHEMA_CONTEXT}
+
+STRICT RULES:
+1. Output ONLY the raw SQL query. No markdown, no backticks, no preamble, no explanation.
+2. Must be a single SELECT statement. Never use DROP, DELETE, INSERT, UPDATE, CREATE, ALTER, TRUNCATE.
+3. Always qualify tables: iceberg.silver.<table> or iceberg.gold.<table>.
+4. Use NULLIF to avoid division by zero. Use LIMIT (max {MAX_ROWS}) unless user asks for all.
+5. Follow the few-shot examples above — they show the correct pattern for common queries.
+6. For CPI/SPI filter queries, ALWAYS include the filter in the WHERE clause (e.g. WHERE cpi < 1.0).
 """
 
 
@@ -106,10 +158,14 @@ class NLQueryResponse(BaseModel):
     explanation: Optional[str] = None
 
 
+# ── Allowed table allowlist (Gold and Silver only — no DDL targets) ────────────
+ALLOWED_SCHEMAS = {"gold", "silver"}
+
+
 def validate_and_sanitize_sql(sql_query: str) -> str:
-    """Uses SQLGlot to parse, format, and ensure query is strictly a safe read-only SELECT."""
+    """Uses SQLGlot to parse and ensure the query is strictly a safe read-only SELECT."""
     clean_sql = sql_query.strip().rstrip(";")
-    # Strip markdown quotes if LLM wrapped in ```sql ... ```
+    # Strip markdown code fences if LLM wrapped in ```sql ... ```
     clean_sql = re.sub(r"^```(?:sql)?\s*", "", clean_sql, flags=re.IGNORECASE)
     clean_sql = re.sub(r"\s*```$", "", clean_sql)
 
@@ -118,17 +174,105 @@ def validate_and_sanitize_sql(sql_query: str) -> str:
     except Exception as e:
         raise ValueError(f"SQL syntax error: {str(e)}")
 
-    # Strictly check that the root expression is a SELECT
+    # Root must be a SELECT
     if not isinstance(parsed, exp.Select):
-        raise ValueError("Security Violation: Only read-only SELECT queries are permitted.")
+        raise ValueError(
+            f"Security Violation: Only read-only SELECT queries are permitted. "
+            f"Got: {type(parsed).__name__}"
+        )
 
-    # Guard against DDL/DML mutation keywords
+    # Forbidden mutation operations
     forbidden = [exp.Drop, exp.Delete, exp.Insert, exp.Update, exp.Alter, exp.TruncateTable]
     for expr_type in forbidden:
         if parsed.find(expr_type):
-            raise ValueError(f"Security Violation: Query contains prohibited operation {expr_type.__name__}.")
+            raise ValueError(
+                f"Security Violation: Query contains prohibited operation {expr_type.__name__}."
+            )
+
+    # Validate all referenced tables are in allowed schemas
+    for table in parsed.find_all(exp.Table):
+        # table.db is a string property (empty string if no schema prefix)
+        db = table.db.lower() if table.db else ""
+        if db and db not in ALLOWED_SCHEMAS and db not in {"", "iceberg"}:
+            raise ValueError(
+                f"Security Violation: Table schema '{db}' is not in the allowed list {ALLOWED_SCHEMAS}."
+            )
+
+    # Ensure LIMIT exists (add one if missing)
+    if not parsed.find(exp.Limit):
+        clean_sql = f"{clean_sql} LIMIT {MAX_ROWS}"
+        parsed = sqlglot.parse_one(clean_sql, read="trino")
 
     return parsed.sql(dialect="trino")
+
+
+def _heuristic_fallback(user_q: str) -> str:
+    """
+    Keyword-based fallback SQL templates when Ollama is unavailable or times out.
+    Fallback templates MUST include correct WHERE clauses matching the user intent.
+    """
+    lower_q = user_q.lower()
+
+    if ("cpi" in lower_q or "cost performance" in lower_q) and (
+        "below" in lower_q or "less than" in lower_q or "under" in lower_q or "< 1" in lower_q
+    ):
+        return (
+            "SELECT project_id, AVG(cpi) AS avg_cpi, AVG(spi) AS avg_spi "
+            "FROM iceberg.gold.evm_metrics "
+            "WHERE cpi < 1.0 "
+            "GROUP BY project_id ORDER BY avg_cpi ASC "
+            f"LIMIT {MAX_ROWS}"
+        )
+    elif "spi" in lower_q and ("below" in lower_q or "less" in lower_q or "behind" in lower_q):
+        return (
+            "SELECT project_id, AVG(spi) AS avg_spi "
+            "FROM iceberg.gold.evm_metrics "
+            "WHERE spi < 1.0 "
+            "GROUP BY project_id ORDER BY avg_spi ASC "
+            f"LIMIT {MAX_ROWS}"
+        )
+    elif "evm" in lower_q or "cpi" in lower_q or "spi" in lower_q or "earned value" in lower_q:
+        return (
+            "SELECT e.project_id, e.date_id, e.ev, e.pv, e.ac, e.cpi, e.spi "
+            "FROM iceberg.gold.evm_metrics e "
+            "WHERE e.date_id = (SELECT MAX(date_id) FROM iceberg.gold.evm_metrics WHERE project_id = e.project_id) "
+            "ORDER BY e.project_id "
+            f"LIMIT {MAX_ROWS}"
+        )
+    elif "budget" in lower_q and ("over" in lower_q or "exceed" in lower_q):
+        return (
+            "SELECT project_id, total_budget, total_cost, total_cost - total_budget AS overrun "
+            "FROM iceberg.gold.project_summary "
+            "WHERE total_cost > total_budget "
+            "ORDER BY overrun DESC "
+            f"LIMIT {MAX_ROWS}"
+        )
+    elif "budget" in lower_q:
+        return (
+            "SELECT wbs_id, total_budget, currency "
+            "FROM iceberg.gold.budget_vs_actual "
+            "ORDER BY total_budget DESC "
+            f"LIMIT {MAX_ROWS}"
+        )
+    elif "reconcil" in lower_q:
+        return (
+            "SELECT source_total, gold_total, quarantine_total, difference, is_within_tolerance, reconciled_at "
+            "FROM iceberg.gold.reconciliation"
+        )
+    elif "project" in lower_q and "active" in lower_q:
+        return (
+            "SELECT project_id, project_name, client_name, status, country "
+            "FROM iceberg.silver.dim_project "
+            "WHERE is_current = TRUE AND status = 'Active' "
+            f"LIMIT {MAX_ROWS}"
+        )
+    else:
+        return (
+            "SELECT project_id, project_name, client_name, status "
+            "FROM iceberg.silver.dim_project "
+            "WHERE is_current = TRUE "
+            f"LIMIT {MAX_ROWS}"
+        )
 
 
 @app.get("/health")
@@ -138,7 +282,7 @@ def health():
         "service": "dar-nl2sql",
         "ollama_host": OLLAMA_HOST,
         "llm_model": OLLAMA_MODEL,
-        "trino_target": f"{TRINO_HOST}:{TRINO_PORT}"
+        "trino_target": f"{TRINO_HOST}:{TRINO_PORT}",
     }
 
 
@@ -149,47 +293,35 @@ async def translate_and_query(req: NLQueryRequest):
     if not user_q:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
-    system_prompt = f"""You are an expert Trino SQL engineer for the Dar Al-Handasah Data Lakehouse.
-Your task is to translate the user's natural language question into a clean, syntactically correct Trino SQL query over Apache Iceberg tables.
-
-{SCHEMA_CONTEXT}
-
-RULES:
-1. Output ONLY the raw SQL query. Do NOT add any preamble, markdown formatting, backticks, or commentary.
-2. The query MUST be a read-only SELECT statement.
-3. Always prefix tables with the catalog and schema: `iceberg.silver.<table_name>` or `iceberg.gold.<table_name>`.
-4. Use standard ANSI/Trino SQL functions. Use NULLIF to avoid division by zero when calculating ratios.
-5. Limit results to 50 rows unless explicitly requested otherwise.
-"""
-
     raw_sql = ""
+    ollama_ok = False
+
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # Raise timeout to 120s for CPU-mode inference; ~3s expected on GPU
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            t0 = time.time()
             resp = await client.post(
                 f"{OLLAMA_HOST}/api/generate",
                 json={
                     "model": OLLAMA_MODEL,
-                    "prompt": f"{system_prompt}\nUser Question: {user_q}\nSQL Query:",
+                    "prompt": f"{SYSTEM_PROMPT}\nUser Question: {user_q}\nSQL Query:",
                     "stream": False,
-                    "options": {"temperature": 0.1, "top_p": 0.8}
-                }
+                    "keep_alive": "15m",
+                    "options": {"temperature": 0.05, "top_p": 0.9, "num_predict": 512},
+                },
             )
+            ollama_ms = int((time.time() - t0) * 1000)
+            logger.info("Ollama responded in %d ms", ollama_ms)
             if resp.status_code == 200:
                 raw_sql = resp.json().get("response", "").strip()
+                ollama_ok = bool(raw_sql and "SELECT" in raw_sql.upper())
     except Exception as e:
-        print(f"Ollama call failed ({e}); checking fallback heuristics.")
+        logger.warning("Ollama call failed (%s) — using heuristic fallback.", e)
 
-    # Fallback heuristic templates if Ollama is offline or warming up
-    if not raw_sql or "SELECT" not in raw_sql.upper():
-        lower_q = user_q.lower()
-        if "cpi" in lower_q or "evm" in lower_q or "performance" in lower_q:
-            raw_sql = "SELECT project_id, date_id, ev, pv, ac, cpi, spi FROM iceberg.gold.evm_metrics ORDER BY date_id DESC LIMIT 20"
-        elif "budget" in lower_q:
-            raw_sql = "SELECT wbs_id, total_budget, currency FROM iceberg.gold.budget_vs_actual ORDER BY total_budget DESC LIMIT 20"
-        elif "reconcil" in lower_q:
-            raw_sql = "SELECT source_total, gold_total, difference, is_within_tolerance FROM iceberg.gold.reconciliation"
-        else:
-            raw_sql = "SELECT project_id, project_name, client_name, status, country FROM iceberg.silver.dim_project WHERE is_current = TRUE LIMIT 20"
+    # If Ollama failed or returned unusable output, use heuristic templates
+    if not ollama_ok:
+        logger.info("Using heuristic fallback for query: %r", user_q)
+        raw_sql = _heuristic_fallback(user_q)
 
     # SQLGlot Safety Validation
     try:
@@ -197,25 +329,26 @@ RULES:
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
 
-    columns = []
-    rows = []
+    columns: List[str] = []
+    rows: List[List[Any]] = []
     if req.execute:
         try:
             conn = trino.dbapi.connect(
                 host=TRINO_HOST,
                 port=TRINO_PORT,
                 user=TRINO_USER,
-                catalog=TRINO_CATALOG
+                catalog=TRINO_CATALOG,
             )
             cursor = conn.cursor()
             cursor.execute(safe_sql)
             columns = [col[0] for col in cursor.description] if cursor.description else []
-            raw_rows = cursor.fetchall()
+            raw_rows = cursor.fetchmany(MAX_ROWS)
             rows = [[str(val) if val is not None else None for val in r] for r in raw_rows]
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Trino execution error: {str(e)}")
 
     exec_time_ms = int((time.time() - start_time) * 1000)
+    source = "ollama" if ollama_ok else "heuristic-fallback"
     return NLQueryResponse(
         nl_query=user_q,
         sql=safe_sql,
@@ -224,5 +357,8 @@ RULES:
         rows=rows,
         row_count=len(rows),
         execution_ms=exec_time_ms,
-        explanation=f"Executed against Trino Iceberg engine ({len(rows)} records returned)."
+        explanation=(
+            f"SQL generated via {source}. "
+            f"Executed against Trino Iceberg engine ({len(rows)} records returned)."
+        ),
     )

@@ -3,13 +3,17 @@ tests/uc1/test_uc1_search_gate.py
 Automated Acceptance & Gate Test for Use Case 1:
 Making Project Files Searchable (Semi-Structured & Unstructured).
 
+NEGATIVE CONTROL SUPPORT:
+  Set env var NEGATIVE_CONTROL=<name>:
+    break_acl  → ACL filter removed; test_security_acl_enforcement MUST FAIL
+    If it passes with break_acl set, the test is wrong.
+
 Verifies:
-  1. Multi-format Document Extraction (AutoCAD DXF, BIM IFC, Email, Tika text)
-  2. PII Detection & Anonymization Engine
-  3. OpenSearch Index & Hybrid Search Pipeline Creation
+  1. Multi-format Document Extraction (AutoCAD DXF, BIM IFC, Email)
+  2. PII Detection & Anonymization (Presidio)
+  3. OpenSearch Index & Hybrid Search Pipeline
   4. Vector Embedding & Hybrid (BM25 + k-NN) Search Accuracy
   5. Dynamic Role-Based Access Control (ACL) Enforcement
-  6. RAG Contextual Retrieval & Answer Generation
 """
 
 import os
@@ -30,8 +34,10 @@ from ingestion.sample_generator import (
     create_sample_ifc,
     create_sample_email,
     create_sample_contract_with_pii,
-    create_sample_spec_doc
+    create_sample_spec_doc,
 )
+
+NEGATIVE_CONTROL = os.environ.get("NEGATIVE_CONTROL", "")
 
 
 @pytest.fixture(scope="session")
@@ -47,11 +53,22 @@ def anonymizer():
 @pytest.fixture(scope="session")
 def indexer():
     opensearch_host = os.environ.get("OPENSEARCH_HOST", "http://localhost:9200")
-    return OpenSearchIndexer(host=opensearch_host)
+    opensearch_pwd  = os.environ.get("OPENSEARCH_PASSWORD", "DarLakehouseAdmin123!")
+    # Password is read from OPENSEARCH_PASSWORD env var inside OpenSearchIndexer
+    os.environ.setdefault("OPENSEARCH_PASSWORD", opensearch_pwd)
+    try:
+        idx = OpenSearchIndexer(host=opensearch_host)
+        return idx
+    except Exception as e:
+        pytest.fail(
+            f"OpenSearch indexer could not be initialised: {e}. "
+            "Ensure dar-opensearch is up and OPENSEARCH_HOST / OPENSEARCH_PASSWORD are set."
+        )
 
 
 class TestUC1ExtractionAndAnonymization:
     def test_dxf_extraction(self, extractor):
+        """Unit: AutoCAD DXF extraction produces correct metadata."""
         with tempfile.NamedTemporaryFile(suffix=".dxf", delete=False) as tf:
             create_sample_dxf(tf.name)
             tf_path = tf.name
@@ -68,6 +85,7 @@ class TestUC1ExtractionAndAnonymization:
         assert "cad_meta" in res["extracted_metadata"] or "format" in res["extracted_metadata"]
 
     def test_ifc_bim_extraction(self, extractor):
+        """Unit: BIM IFC extraction produces correct metadata and content."""
         with tempfile.NamedTemporaryFile(suffix=".ifc", delete=False) as tf:
             create_sample_ifc(tf.name)
             tf_path = tf.name
@@ -83,6 +101,7 @@ class TestUC1ExtractionAndAnonymization:
         assert len(res["raw_content"]) > 50
 
     def test_email_extraction(self, extractor):
+        """Unit: .eml extraction produces sender, subject, and body."""
         with tempfile.NamedTemporaryFile(suffix=".eml", delete=False) as tf:
             create_sample_email(tf.name)
             tf_path = tf.name
@@ -98,19 +117,27 @@ class TestUC1ExtractionAndAnonymization:
         assert "tariq.mansoor@dar.demo" in res["raw_content"]
 
     def test_pii_anonymization(self, anonymizer):
+        """Unit: Presidio redacts phone numbers, emails and IBANs."""
         sample_text = (
             "Contact lead engineer John Doe at personal email john.personal@gmail.com "
             "or cell +44 7911 123456. Wire retention to IBAN GB29NWBK60161331926819."
         )
         redacted, detected = anonymizer.process(sample_text)
-        assert "john.personal@gmail.com" not in redacted
-        assert "GB29NWBK60161331926819" not in redacted
-        assert len(detected) >= 2
+        assert "john.personal@gmail.com" not in redacted, \
+            "PII email was NOT redacted"
+        assert "GB29NWBK60161331926819" not in redacted, \
+            "PII IBAN was NOT redacted"
+        assert len(detected) >= 2, \
+            f"Expected ≥2 PII entities detected, got {len(detected)}: {detected}"
 
 
 class TestUC1OpenSearchAndHybridSearch:
     def test_index_and_hybrid_search(self, extractor, anonymizer, indexer):
-        # 1. Prepare sample document
+        """
+        Integration: Index a document and retrieve it via hybrid (BM25 + k-NN) search.
+        FAILS (not skips) if OpenSearch is unreachable.
+        """
+        # Prepare sample document
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tf:
             create_sample_spec_doc(tf.name)
             tf_path = tf.name
@@ -124,48 +151,81 @@ class TestUC1OpenSearchAndHybridSearch:
         doc["raw_content"] = clean_text
         doc["allowed_roles"] = ["pm_hosp-03", "eng_structural"]
 
-        # 2. Index into OpenSearch
-        try:
-            indexer.ensure_index_and_pipeline()
-            indexed_count = indexer.index_document(doc)
-            assert indexed_count > 0, "Failed to index document chunks into OpenSearch"
-        except Exception as e:
-            pytest.skip(f"OpenSearch service not reachable locally: {e}")
+        # Index into OpenSearch — must succeed or FAIL (not skip)
+        indexer.ensure_index_and_pipeline()
+        indexed_count = indexer.index_document(doc)
+        assert indexed_count > 0, \
+            "Failed to index document chunks into OpenSearch"
 
-        time.sleep(1.0)  # Allow indexing refresh
+        time.sleep(1.5)  # Allow indexing refresh
 
-        # 3. Hybrid Search Execution
+        # Hybrid Search
         hits = indexer.hybrid_search(
             query_text="deep bored concrete piles foundation",
             user_roles=["eng_structural"],
             project="HOSP-03",
-            limit=5
+            limit=5,
         )
-        assert len(hits) > 0, "Hybrid search returned zero results"
-        assert hits[0]["project_code"] == "HOSP-03"
+        assert len(hits) > 0, "Hybrid search returned zero results for an indexed document"
+        assert hits[0]["project_code"] == "HOSP-03", \
+            f"Top result was for wrong project: {hits[0]['project_code']}"
 
     def test_security_acl_enforcement(self, indexer):
-        """Proves that a user without the proper role CANNOT view restricted documents."""
-        try:
-            # Query with an unauthorized role (e.g., pm_metro-01 querying HOSP-03 restricted doc)
-            unauthorized_hits = indexer.hybrid_search(
-                query_text="deep bored concrete piles",
-                user_roles=["pm_metro-01"],  # Only has access to METRO-01
-                project="HOSP-03",
-                limit=5
-            )
-            assert len(unauthorized_hits) == 0, "Security Violation: Unauthorized persona accessed HOSP-03 file!"
+        """
+        Integration: Proves ACL filter blocks unauthorized access.
 
-            # Query with authorized role
-            authorized_hits = indexer.hybrid_search(
-                query_text="deep bored concrete piles",
-                user_roles=["eng_structural"],  # Has clearance
-                project="HOSP-03",
-                limit=5
+        NEGATIVE CONTROL (NEGATIVE_CONTROL=break_acl):
+          If set, we expect the unauthorized query to RETURN results (ACL is removed).
+          If the query still returns 0 results, the negative control didn't work — bug.
+
+        Normal mode: unauthorized query MUST return 0 results.
+        """
+        # Query with an unauthorized role — MUST return 0
+        unauthorized_hits = indexer.hybrid_search(
+            query_text="deep bored concrete piles",
+            user_roles=["pm_metro-01"],  # Only has METRO-01 access
+            project="HOSP-03",
+            limit=5,
+        )
+
+        authorized_hits = indexer.hybrid_search(
+            query_text="deep bored concrete piles",
+            user_roles=["eng_structural"],  # Has HOSP-03 clearance
+            project="HOSP-03",
+            limit=5,
+        )
+
+        if NEGATIVE_CONTROL == "break_acl":
+            # Negative control: ACL should be removed, unauthorized query should return data
+            assert len(unauthorized_hits) > 0, (
+                "NEGATIVE CONTROL FAILED: even with ACL removed, the unauthorized query "
+                "still returns 0 results. The negative control test is not working correctly."
             )
-            assert len(authorized_hits) > 0, "Authorized persona was denied legitimate access"
-        except Exception as e:
-            pytest.skip(f"OpenSearch service not reachable locally: {e}")
+        else:
+            assert len(unauthorized_hits) == 0, (
+                f"SECURITY VIOLATION: Unauthorized persona 'pm_metro-01' received "
+                f"{len(unauthorized_hits)} HOSP-03 result(s). ACL filter is broken!"
+            )
+            assert len(authorized_hits) > 0, \
+                "Authorized persona 'eng_structural' was denied legitimate HOSP-03 access"
+
+    def test_tier_b_metadata_only_handling(self, indexer):
+        """
+        Verifies that Tier B files (RVT/DWG) are indexed with metadata_only=True
+        and are not returned as content-searchable results.
+        """
+        # Search for any indexed DWG files
+        hits = indexer.hybrid_search(
+            query_text="DWG AutoCAD drawing",
+            user_roles=["eng_structural"],
+            limit=10,
+        )
+        tier_b_hits = [h for h in hits if h.get("file_tier") == "B"]
+        for hit in tier_b_hits:
+            assert hit.get("metadata_only") is True, \
+                f"Tier B file {hit.get('file_path')} is missing metadata_only=True flag"
+            assert not hit.get("raw_content"), \
+                f"Tier B file {hit.get('file_path')} has raw_content — should be metadata only"
 
 
 if __name__ == "__main__":
