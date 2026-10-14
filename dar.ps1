@@ -206,7 +206,7 @@ try {
         'seed' { Invoke-Seed }
         'health' { Invoke-Health }
         'verify' { Invoke-Health; Invoke-Docker -Name 'verify-opa' -Arguments @('run','--rm','-v',"${script:Root}\infra\opa:/policies:ro",'openpolicyagent/opa:0.68.0','test','/policies','-v') }
-        'simulate-day' { Read-DotEnv; Invoke-Docker -Name 'simulate-day' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check psycopg2-binary==2.9.9 && python data-gen/uc2/simulate_day.py') }
+        'simulate-day' { Read-DotEnv; Invoke-Docker -Name 'simulate-day' -Arguments @('run','--rm','--network','dar-lakehouse_default','--env-file','.env','-e','PG_DW_HOST=postgres-dw','-e','PG_DW_PORT=5432','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check psycopg2-binary==2.9.9 && python data-gen/uc2/simulate_day.py') }
         'backup' { Invoke-Docker -Name 'backup' -Arguments @('run','--rm','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','echo Backup implementation required: scripts/backup.sh is absent; exit 2') }
         'restore' { Invoke-Docker -Name 'restore' -Arguments @('run','--rm','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','echo Restore implementation required: scripts/restore.sh is absent; exit 2') }
         'licenses' { Invoke-Docker -Name 'licenses' -Arguments @('run','--rm','-v',"${script:Root}:/repo",'-w','/repo','python:3.11-slim','bash','-lc','pip install --disable-pip-version-check pip-licenses==5.0.0 requests==2.32.3 && python tests/licence_gate/check_licences.py') }

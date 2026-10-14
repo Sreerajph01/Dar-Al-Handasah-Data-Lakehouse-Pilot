@@ -514,11 +514,12 @@ services:
       opensearch:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status || exit 1"]
+      # /api/status requires auth — use admin credentials to avoid 401 unhealthy
+      test: ["CMD-SHELL", "curl -sf -u admin:${OPENSEARCH_PASSWORD:-DarLakehouseAdmin123!} http://localhost:5601/api/status | grep -q 'overall' || exit 1"]
       interval: 20s
       timeout: 15s
       retries: 15
-      start_period: 90s
+      start_period: 120s
     networks:
       - lakehouse-net
 
@@ -603,6 +604,8 @@ services:
       KONG_PROXY_LISTEN: "0.0.0.0:8000"
       KONG_MEM_CACHE_SIZE: "64m"
       KONG_NGINX_WORKER_PROCESSES: "1"
+    # Clean stale unix socket on restart to prevent 'Address already in use' crash-loop
+    command: ["sh", "-c", "rm -f /usr/local/kong/sockets/we && kong start --vv"]
     volumes:
       - ./infra/kong/kong.yml:/etc/kong/kong.yml:ro
     ports:

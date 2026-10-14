@@ -60,27 +60,48 @@ services:
       - lakehouse-net
 
   # ─── OpenMetadata ingestion ───────────────────────────────────────────────
+  # This runs the OpenMetadata-bundled Airflow scheduler that manages OM
+  # pipeline DAGs. It is NOT our project Airflow — it uses postgres-meta as
+  # its own backend and has its own web UI on port 8080.
   openmetadata-ingestion:
     image: docker.getcollate.io/openmetadata/ingestion:${OPENMETADATA_VERSION:-2.0.3}
     container_name: dar-openmetadata-ingestion
     restart: unless-stopped
+    # 'scheduler' starts the bundled Airflow scheduler.
+    # Without this the entrypoint calls 'airflow' with no args → prints help → exits.
+    command: scheduler
     environment:
-      AIRFLOW_HOST: "http://airflow-webserver:8080"
-      AIRFLOW_USERNAME: admin
-      AIRFLOW_PASSWORD: "${AIRFLOW_WEBSERVER_SECRET}"
+      # OM pipeline service — points to the OM server for deploying pipeline DAGs
+      OPENMETADATA_SERVER_URL: "http://openmetadata:8585"
+      PIPELINE_SERVICE_CLIENT_ENDPOINT: "http://openmetadata-ingestion:8080"
       SERVER_HOST: openmetadata
       SERVER_PORT: "8585"
-      DB_HOST: postgres-meta
-      DB_PORT: "5432"
-      DB_DATABASE: "${OM_DB}"
-      DB_USER: "${OM_DB_USER}"
-      DB_USER_PASSWORD: "${OM_DB_PASSWORD}"
-      OPENMETADATA_SERVER_URL: "http://openmetadata:8585"
+      # Airflow DB backend (uses the shared postgres-meta database)
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: "postgresql+psycopg2://${OM_DB_USER}:${OM_DB_PASSWORD}@postgres-meta:5432/${OM_AIRFLOW_DB:-airflow_om}"
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      # Initialise the bundled Airflow DB on first start
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: "${AIRFLOW_WEBSERVER_SECRET}"
+      # OM metadata pipeline credentials (for connecting back to OM server)
+      AIRFLOW_HOST: "http://openmetadata-ingestion:8080"
+      AIRFLOW_USERNAME: admin
+      AIRFLOW_PASSWORD: "${AIRFLOW_WEBSERVER_SECRET}"
     depends_on:
       openmetadata:
         condition: service_started
-      airflow-webserver:
+      postgres-meta:
         condition: service_started
+    healthcheck:
+      # No webserver in scheduler-only mode — use Airflow's built-in heartbeat check
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob || exit 1"]
+      interval: 60s
+      timeout: 20s
+      retries: 5
+      start_period: 120s
     networks:
       - lakehouse-net
 

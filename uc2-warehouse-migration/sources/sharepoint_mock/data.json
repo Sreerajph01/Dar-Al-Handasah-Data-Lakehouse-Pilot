@@ -5,9 +5,9 @@
       "name": "P001_Spec_v1.docx",
       "projectId": "P001",
       "webUrl": "https://dar.sharepoint.example/P001/876080e1-4c9a-f99a-233d-9eb3d1eba173",
-      "size": 4545200,
+      "size": 4546900,
       "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "lastModifiedDateTime": "2026-10-14T16:56:44.250467",
       "_op": "U"
     },
     {
@@ -17,7 +17,7 @@
       "webUrl": "https://dar.sharepoint.example/P001/e84511a2-9bc2-7450-a3a9-047230020f5e",
       "size": 3800419,
       "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "lastModifiedDateTime": "2026-10-14T16:56:44.250467",
       "_op": "D"
     },
     {
@@ -258,6 +258,16 @@
       "size": 174756,
       "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "lastModifiedDateTime": "2026-10-07T12:32:12.405582",
+      "_op": "I"
+    },
+    {
+      "id": "SIM-81719",
+      "name": "SimSpec_SIM-81719.docx",
+      "projectId": "SIM",
+      "webUrl": "https://dar.sharepoint.example/SIM/SIM-81719",
+      "size": 141526,
+      "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "lastModifiedDateTime": "2026-10-14T16:56:44.250467",
       "_op": "I"
     }
   ],

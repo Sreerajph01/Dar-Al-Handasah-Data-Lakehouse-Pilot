@@ -44,8 +44,9 @@ REPO_ROOT = os.path.normpath(
 # ---------------------------------------------------------------------------
 # Configuration from environment (set by Makefile via .env)
 # ---------------------------------------------------------------------------
-PG_HOST = os.environ.get("PG_DW_HOST_ACCESS", "localhost")  # host-accessible
-PG_PORT = int(os.environ.get("PG_DW_PORT", "5434"))
+PG_HOST = os.environ.get("PG_DW_HOST",                      # docker-network name (preferred)
+           os.environ.get("PG_DW_HOST_ACCESS", "localhost"))  # host-accessible fallback
+PG_PORT = int(os.environ.get("PG_DW_PORT", "5432"))          # 5432 inside docker, 5434 from host
 PG_DB   = os.environ.get("PG_DW_DB", "DAR_DW")
 PG_USER = os.environ.get("PG_DW_SA_USER", "dar_dw_admin")
 PG_PASS = os.environ.get("PG_DW_SA_PASSWORD", "CHANGE_ME_DW_ADMIN")

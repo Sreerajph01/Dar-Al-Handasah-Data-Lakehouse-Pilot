@@ -7,11 +7,11 @@
       "ProjectType": "Building",
       "CountryRegion": "Kuwait",
       "CurrencyCode": "USD",
-      "Status": "Completed",
+      "Status": "Active",
       "StartDate": "2023-01-02",
       "PlannedEndDate": "2025-07-18",
-      "ModifiedAt": "2026-10-07T12:32:12.366542",
-      "RowVersion": 2,
+      "ModifiedAt": "2026-10-14T16:56:44.169774",
+      "RowVersion": 3,
       "_op": "U"
     },
     {
@@ -24,8 +24,8 @@
       "Status": "Active",
       "StartDate": "2023-02-07",
       "PlannedEndDate": "2026-06-20",
-      "ModifiedAt": "2026-10-07T12:32:12.366542",
-      "RowVersion": 2,
+      "ModifiedAt": "2026-10-14T16:56:44.169774",
+      "RowVersion": 3,
       "_op": "D"
     },
     {
@@ -81,6 +81,20 @@
       "StartDate": "2026-10-07",
       "PlannedEndDate": "2027-10-07",
       "ModifiedAt": "2026-10-07T12:32:12.366542",
+      "RowVersion": 1,
+      "_op": "I"
+    },
+    {
+      "ProjectId": "SIM-57649",
+      "ProjectName": "Simulated Project SIM-57649",
+      "ClientName": "Sim Client",
+      "ProjectType": "Infrastructure",
+      "CountryRegion": "UAE",
+      "CurrencyCode": "USD",
+      "Status": "Active",
+      "StartDate": "2026-10-14",
+      "PlannedEndDate": "2027-10-14",
+      "ModifiedAt": "2026-10-14T16:56:44.169774",
       "RowVersion": 1,
       "_op": "I"
     }
