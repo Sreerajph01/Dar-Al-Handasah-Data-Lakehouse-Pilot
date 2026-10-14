@@ -24,7 +24,8 @@ TRINO_HOST = os.environ.get("TRINO_HOST_ACCESS", os.environ.get("TRINO_HOST", "l
 TRINO_PORT = int(os.environ.get("TRINO_PORT", "18080"))
 TRINO_USER = "admin"
 DATA_API_URL = os.environ.get("DATA_API_URL", "http://localhost:8092")
-NL2SQL_URL   = os.environ.get("NL2SQL_URL", "http://localhost:8095")
+# NL2SQL_URL: inside docker network use dar-nl2sql:8000; from host use localhost:8095
+NL2SQL_URL   = os.environ.get("NL2SQL_URL", "http://dar-nl2sql:8000")
 NEGATIVE_CONTROL = os.environ.get("NEGATIVE_CONTROL", "")
 
 # JWT for Keycloak-authenticated requests (see docs/DEMO_CREDENTIALS.md)

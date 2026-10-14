@@ -240,8 +240,15 @@ class OpenSearchIndexer:
         """Executes Hybrid (BM25 + k-NN) query with dynamic security filtering."""
         filters = []
 
-        # 1. Dynamic RBAC/ABAC Security Filter
-        if user_roles:
+        # Negative control: skip ACL filter when NEGATIVE_CONTROL=break_acl
+        # This allows the test to prove that ACL WAS the thing blocking access.
+        _neg_ctrl = os.environ.get("NEGATIVE_CONTROL", "")
+        acl_disabled = _neg_ctrl == "break_acl"
+        if acl_disabled:
+            logger.warning("NEGATIVE CONTROL ACTIVE: ACL filter DISABLED — unauthorized queries will return data")
+
+        # 1. Dynamic RBAC/ABAC Security Filter (skipped in negative control mode)
+        if user_roles and not acl_disabled:
             filters.append({
                 "terms": {
                     "allowed_roles": [r.lower() for r in user_roles]
