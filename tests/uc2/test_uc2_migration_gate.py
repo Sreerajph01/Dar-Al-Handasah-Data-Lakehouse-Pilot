@@ -79,7 +79,7 @@ class TestUC2MedallionLakehouse:
 
         cursor.execute(
             "SELECT SUM(CAST(amount AS double)) FROM iceberg.silver.fact_budget"
-            " WHERE is_deleted <> TRUE"
+            " WHERE is_deleted <> 'true'"
         )
         budget_sum = cursor.fetchone()[0]
         assert budget_sum is not None and budget_sum > 0, \
