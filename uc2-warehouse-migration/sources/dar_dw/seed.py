@@ -111,9 +111,12 @@ def fiscal_year(d: date) -> int:
 
 def fiscal_quarter(d: date) -> int:
     m = d.month
-    if m >= 4 and m <= 6:   return 1
-    if m >= 7 and m <= 9:   return 2
-    if m >= 10 and m <= 12: return 3
+    if m >= 4 and m <= 6:
+        return 1
+    if m >= 7 and m <= 9:
+        return 2
+    if m >= 10 and m <= 12:
+        return 3
     return 4
 
 
@@ -772,16 +775,16 @@ def main():
 
     print("Truncating existing tables to ensure idempotency...")
     cur.execute("""
-        TRUNCATE TABLE 
-            warehouse.fact_timesheet, 
-            warehouse.fact_cost_actuals, 
-            warehouse.fact_budget, 
-            warehouse.fact_evm_snapshot, 
-            warehouse.dim_wbs, 
-            warehouse.dim_project, 
-            warehouse.dim_employee, 
-            warehouse.dim_cost_code, 
-            warehouse.dim_calendar 
+        TRUNCATE TABLE
+            warehouse.fact_timesheet,
+            warehouse.fact_cost_actuals,
+            warehouse.fact_budget,
+            warehouse.fact_evm_snapshot,
+            warehouse.dim_wbs,
+            warehouse.dim_project,
+            warehouse.dim_employee,
+            warehouse.dim_cost_code,
+            warehouse.dim_calendar
         RESTART IDENTITY CASCADE;
     """)
 

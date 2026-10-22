@@ -15,7 +15,6 @@ logger = logging.getLogger("uc1.anonymizer")
 try:
     from presidio_analyzer import AnalyzerEngine
     from presidio_anonymizer import AnonymizerEngine
-    from presidio_anonymizer.entities import OperatorConfig
     HAS_PRESIDIO = True
     analyzer = AnalyzerEngine()
     anonymizer = AnonymizerEngine()

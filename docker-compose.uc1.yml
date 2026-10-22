@@ -58,6 +58,8 @@ services:
       KEYCLOAK_URL: "http://keycloak:8444"
       KEYCLOAK_REALM: "${KEYCLOAK_REALM:-dar-lakehouse}"
       KEYCLOAK_CLIENT_ID: search-ui
+    volumes:
+      - ./uc1-search:/app
     ports:
       - "${SEARCH_API_PORT:-8093}:8000"
     depends_on:

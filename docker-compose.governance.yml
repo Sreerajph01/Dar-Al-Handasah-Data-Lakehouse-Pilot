@@ -39,8 +39,8 @@ services:
       AUTHORIZER_INGESTION_PRINCIPALS: "[ingestion-bot]"
       JWT_ISSUER: "open-metadata.org"
       JWT_KEY_ID: "Gb389a-9f76-gdjs-a92j-0242bk94356"
-      RSA_PUBLIC_KEY_FILE_PATH: ""
-      RSA_PRIVATE_KEY_FILE_PATH: ""
+      RSA_PUBLIC_KEY_FILE_PATH: "./conf/public_key.der"
+      RSA_PRIVATE_KEY_FILE_PATH: "./conf/private_key.der"
       # Airflow lineage
       AIRFLOW_HOST: "http://airflow-webserver:8080"
     ports:
@@ -51,7 +51,7 @@ services:
       opensearch:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8585/api/v1/system/status || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8586/healthcheck || exit 1"]
       interval: 30s
       timeout: 20s
       retries: 20

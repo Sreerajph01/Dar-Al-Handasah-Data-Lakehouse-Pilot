@@ -9,7 +9,7 @@ import os
 import sys
 import time
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 # Ensure enrichment and indexing packages are in path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))

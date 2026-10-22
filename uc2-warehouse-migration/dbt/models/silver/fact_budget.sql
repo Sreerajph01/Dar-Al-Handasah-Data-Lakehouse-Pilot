@@ -13,7 +13,7 @@ latest_events AS (
 SELECT 
     b.budget_id, 
     b.wbs_id, 
-    CAST(b.budget_amount AS double) * CAST(fx.rate_to_usd AS double) AS amount, 
+    CAST(b.budget_amount AS DECIMAL(18, 4)) * CAST(fx.rate_to_usd AS DECIMAL(18, 4)) AS amount, 
     'USD' AS currency, 
     b.modified_at, 
     b.is_deleted

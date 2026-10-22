@@ -6,8 +6,6 @@ and PII-containing Contracts to demonstrate search, extraction, and PII anonymiz
 """
 
 import os
-import io
-import time
 import logging
 
 logger = logging.getLogger("uc1.sample_gen")

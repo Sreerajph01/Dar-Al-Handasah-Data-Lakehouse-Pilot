@@ -25,15 +25,15 @@ if len(snapshots) >= 2:
     print(f"Rolling back to parent snapshot: {parent_snapshot}...")
     cur.execute(f"CALL iceberg.system.rollback_to_snapshot('silver', 'dim_project', {parent_snapshot})")
     cur.fetchall()
-    
+
     # Wait a bit for propagation?
     time.sleep(1)
-    
+
     # Verify rollback
     cur.execute("SHOW COLUMNS FROM dim_project")
     cols_after = cur.fetchall()
     print("Columns after rollback:", [c[0] for c in cols_after])
-    
+
     if 'demo_col' not in [c[0] for c in cols_after]:
         print("Rollback successful! Column is gone.")
     else:

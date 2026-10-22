@@ -16,8 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-import textwrap
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Generator, Iterable
 
 import psycopg2
@@ -332,7 +331,7 @@ def load_rows_to_bronze(
     source_col_names: list[str] = []
 
     batch_vals = []
-    
+
     def execute_batch():
         nonlocal n_appended
         if not batch_vals:

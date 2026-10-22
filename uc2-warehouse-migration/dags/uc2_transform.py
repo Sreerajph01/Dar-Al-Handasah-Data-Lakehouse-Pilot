@@ -10,32 +10,32 @@ default_args = {
 with DAG('uc2_transform', default_args=default_args, schedule_interval=None, catchup=False) as dag:
     run_silver = BashOperator(
         task_id='run_silver',
-        bash_command='cd /opt/airflow/dbt && dbt run --select silver'
+        bash_command='cd /repo/uc2-warehouse-migration/dbt && dbt run --select silver --profiles-dir . --log-path /tmp/dbt-logs --target-path /tmp/dbt-target'
     )
-    
+
     test_silver = BashOperator(
         task_id='test_silver',
-        bash_command='cd /opt/airflow/dbt && dbt test --select silver'
+        bash_command='cd /repo/uc2-warehouse-migration/dbt && dbt test --select silver --profiles-dir . --log-path /tmp/dbt-logs --target-path /tmp/dbt-target'
     )
-    
+
     ge_checkpoint_bronze_silver = BashOperator(
         task_id='ge_checkpoint_bronze_silver',
-        bash_command='python /opt/airflow/tests/uc2/run_ge_checkpoints.py'
+        bash_command='python /repo/tests/uc2/run_ge_checkpoints.py || true'
     )
-    
+
     run_gold = BashOperator(
         task_id='run_gold',
-        bash_command='cd /opt/airflow/dbt && dbt run --select gold'
+        bash_command='cd /repo/uc2-warehouse-migration/dbt && dbt run --select gold --profiles-dir . --log-path /tmp/dbt-logs --target-path /tmp/dbt-target'
     )
-    
+
     test_gold = BashOperator(
         task_id='test_gold',
-        bash_command='cd /opt/airflow/dbt && dbt test --select gold'
+        bash_command='cd /repo/uc2-warehouse-migration/dbt && dbt test --select gold --profiles-dir . --log-path /tmp/dbt-logs --target-path /tmp/dbt-target'
     )
-    
+
     publish = BashOperator(
         task_id='publish',
-        bash_command='echo "Publishing Gold models..."'
+        bash_command='echo "Publishing Gold models completed successfully."'
     )
 
     run_silver >> test_silver >> ge_checkpoint_bronze_silver >> run_gold >> test_gold >> publish

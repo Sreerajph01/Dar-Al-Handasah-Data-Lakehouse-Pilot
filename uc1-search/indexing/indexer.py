@@ -10,8 +10,6 @@ Sets up:
 
 import os
 import time
-import math
-import hashlib
 import logging
 from typing import List, Dict, Any, Optional
 import httpx
@@ -24,7 +22,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "http://opensearch:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASS = os.environ.get("OPENSEARCH_PASSWORD", os.environ.get("OPENSEARCH_INITIAL_ADMIN_PASSWORD", "DarLakehouseAdmin123!"))
 OLLAMA_HOST     = os.environ.get("OLLAMA_HOST", "http://ollama:11434")
-EMBED_MODEL     = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:1.5")
+EMBED_MODEL     = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
 INDEX_NAME      = "uc1_documents"
 PIPELINE_NAME   = "uc1_hybrid_pipeline"
 VECTOR_DIM      = 768
@@ -95,6 +93,8 @@ class OpenSearchIndexer:
                         "project_code": {"type": "keyword"},
                         "discipline": {"type": "keyword"},
                         "doc_type": {"type": "keyword"},
+                        "file_tier": {"type": "keyword"},
+                        "metadata_only": {"type": "boolean"},
                         "file_name": {"type": "text", "fields": {"raw": {"type": "keyword"}}},
                         "file_path": {"type": "keyword"},
                         "file_size": {"type": "long"},
@@ -104,6 +104,7 @@ class OpenSearchIndexer:
                             "analyzer": "standard"
                         },
                         "raw_snippet": {"type": "text"},
+                        "raw_content": {"type": "text"},
                         "allowed_roles": {"type": "keyword"},
                         "allowed_users": {"type": "keyword"},
                         "created_at": {"type": "date"},
@@ -131,41 +132,35 @@ class OpenSearchIndexer:
             logger.info(f"OpenSearch index '{INDEX_NAME}' already exists.")
 
     def get_embedding(self, text: str) -> List[float]:
-        """Fetches vector embedding from Ollama nomic-embed-text."""
-        if not text or not text.strip():
-            return [0.0] * VECTOR_DIM
+        """Fetches 768-dim vector embedding from Ollama nomic-embed-text."""
+        clean_text = text[:2000].strip() if text and text.strip() else "engineering project file metadata"
 
-        # Truncate text to avoid model token context overflow
-        clean_text = text[:2000].strip()
-        try:
-            with httpx.Client(timeout=25.0) as client:
-                resp = client.post(
-                    f"{self.ollama_host}/api/embed",
-                    json={"model": EMBED_MODEL, "input": clean_text}
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    embeddings = data.get("embeddings", [])
-                    if embeddings and len(embeddings) > 0:
-                        vec = embeddings[0]
-                        if len(vec) == VECTOR_DIM:
-                            return vec
-        except Exception as e:
-            logger.warning(f"Ollama embedding request failed ({e}). Generating fallback deterministic vector.")
+        models_to_try = [EMBED_MODEL, "nomic-embed-text", "nomic-embed-text:latest", "nomic-embed-text:1.5"]
+        last_error = None
+        for m in models_to_try:
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    resp = client.post(
+                        f"{self.ollama_host}/api/embed",
+                        json={"model": m, "input": clean_text}
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        embeddings = data.get("embeddings", [])
+                        if embeddings and len(embeddings) > 0:
+                            vec = embeddings[0]
+                            if len(vec) == VECTOR_DIM:
+                                return vec
+                    elif resp.status_code != 404:
+                        last_error = f"HTTP {resp.status_code}: {resp.text}"
+            except Exception as e:
+                last_error = str(e)
+                continue
 
-        # Deterministic pseudo-embedding fallback (allows tests to pass even when Ollama is offline/starting)
-        return self._generate_deterministic_vector(clean_text)
-
-    def _generate_deterministic_vector(self, text: str) -> List[float]:
-        """Generates a normalized 768-dim hash vector as graceful offline fallback."""
-        vec = []
-        for i in range(VECTOR_DIM):
-            token = f"{text}_{i}".encode("utf-8")
-            h = int(hashlib.md5(token).hexdigest()[:8], 16)
-            vec.append((h / 0xFFFFFFFF) * 2.0 - 1.0)
-        # Unit norm
-        norm = math.sqrt(sum(x * x for x in vec)) or 1.0
-        return [round(x / norm, 6) for x in vec]
+        raise RuntimeError(
+            f"Ollama embedding failed for all tried models ({models_to_try}) at {self.ollama_host}: {last_error}. "
+            "Real 768-dim embeddings from nomic-embed-text are required."
+        )
 
     def chunk_text(self, text: str, chunk_size: int = 800, overlap: int = 150) -> List[str]:
         """Splits long document text into overlapping chunks."""
@@ -193,7 +188,8 @@ class OpenSearchIndexer:
 
         for idx, chunk in enumerate(chunks):
             chunk_id = f"{doc_data['doc_id']}_c{idx}"
-            vector = self.get_embedding(chunk)
+            embed_text = chunk if chunk.strip() else f"{doc_data.get('file_name', '')} {doc_data.get('project_code', '')} {doc_data.get('discipline', '')} {doc_data.get('doc_type', '')}"
+            vector = self.get_embedding(embed_text)
 
             doc_body = {
                 "doc_id": doc_data["doc_id"],
@@ -203,10 +199,13 @@ class OpenSearchIndexer:
                 "doc_type": doc_data.get("doc_type", "Document"),
                 "file_name": doc_data.get("file_name", "unnamed"),
                 "file_path": doc_data.get("file_path", ""),
+                "file_tier": doc_data.get("file_tier", "A"),
+                "metadata_only": doc_data.get("metadata_only", False),
                 "file_size": doc_data.get("file_size", 0),
                 "hash": doc_data.get("hash", ""),
                 "content": chunk,
                 "raw_snippet": chunk[:250],
+                "raw_content": raw_text,
                 "allowed_roles": doc_data.get("allowed_roles", ["all_staff"]),
                 "allowed_users": doc_data.get("allowed_users", []),
                 "created_at": now_iso,
@@ -355,7 +354,11 @@ class OpenSearchIndexer:
                 "discipline": src["discipline"],
                 "doc_type": src["doc_type"],
                 "file_path": src["file_path"],
-                "content_snippet": src.get("raw_snippet", ""),
+                "file_tier": src.get("file_tier", "A"),
+                "metadata_only": src.get("metadata_only", False),
+                "content_snippet": src.get("content", src.get("raw_snippet", "")),
+                "raw_snippet": src.get("raw_snippet", ""),
+                "raw_content": src.get("raw_content", src.get("content", "")),
                 "highlights": highlights,
                 "allowed_roles": src.get("allowed_roles", []),
                 "extracted_metadata": src.get("extracted_metadata", {})

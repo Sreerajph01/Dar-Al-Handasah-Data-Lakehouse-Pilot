@@ -5,7 +5,6 @@ Loads D365, SharePoint, and PostgreSQL DW into Iceberg Bronze tables via Trino.
 """
 
 import sys
-import os
 from datetime import datetime, timezone
 
 sys.path.insert(0, "/repo/uc2-warehouse-migration/ingestion/dlt_pipelines")

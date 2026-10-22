@@ -1,4 +1,3 @@
-import os
 import subprocess
 
 # We'll use docker exec or AWS CLI against the SeaweedFS S3 gateway.

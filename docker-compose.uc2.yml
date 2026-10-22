@@ -70,6 +70,8 @@ services:
       KEYCLOAK_CLIENT_ID: data-api
       KEYCLOAK_CLIENT_SECRET: "data-api-client-secret-dev"
       NL2SQL_ENDPOINT: "http://nl2sql-service:8000"
+    volumes:
+      - ./uc2-warehouse-migration/api:/app
     ports:
       - "${DATA_API_PORT:-8092}:8000"
     depends_on:
@@ -99,6 +101,8 @@ services:
       TRINO_HOST: trino
       TRINO_PORT: "${TRINO_INTERNAL_PORT:-8080}"
       TRINO_CATALOG: "${TRINO_DEFAULT_CATALOG:-iceberg}"
+    volumes:
+      - ./uc2-warehouse-migration/nl2sql:/app
     ports:
       - "8095:8000"
     depends_on:
@@ -136,6 +140,7 @@ services:
       - "${SUPERSET_PORT:-8088}:8088"
     command: >
       sh -c "
+        pip install --disable-pip-version-check trino==0.329.0 tzlocal &&
         superset db upgrade &&
         superset fab create-admin --username ${SUPERSET_ADMIN_USER} --firstname Admin --lastname User --email admin@dar.demo --password ${SUPERSET_ADMIN_PASSWORD} 2>/dev/null || true &&
         superset init &&

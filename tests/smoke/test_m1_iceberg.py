@@ -24,7 +24,7 @@ TRINO_HOST   = os.environ.get("TRINO_HOST",    "localhost")
 TRINO_PORT   = int(os.environ.get("TRINO_PORT", "18080"))
 TRINO_USER   = os.environ.get("TRINO_USER",    "admin")
 CATALOG      = os.environ.get("TRINO_CATALOG", "iceberg")
-SCHEMA       = f"bronze"
+SCHEMA       = "bronze"
 TABLE        = f"m1_smoke_test_{uuid.uuid4().hex[:8]}"
 
 GREEN = "\033[92m"
@@ -144,7 +144,7 @@ def main():
             assert len(rows) >= 1, "Expected at least 1 snapshot"
             snapshot_id = rows[0][0]
             passed.append("Query Iceberg snapshots metadata")
-            
+
             # 7b. Time travel (Version AS OF)
             rows = run_sql(cur, f"""
                 SELECT COUNT(*) FROM {CATALOG}.{SCHEMA}.{TABLE} FOR VERSION AS OF {snapshot_id}
@@ -164,7 +164,7 @@ def main():
                 CALL {CATALOG}.system.rollback_to_snapshot('{SCHEMA}', '{TABLE}', {snapshot_id})
             """)
             passed.append("Rollback to snapshot")
-            
+
         except Exception as e:
             failed.append(("Snapshot / Time travel tests", str(e)))
 
@@ -183,7 +183,7 @@ def main():
 
     # ── Report ────────────────────────────────────────────────────────────────
     print(f"\n{'='*60}")
-    print(f"M1 ICEBERG SMOKE TEST RESULTS")
+    print("M1 ICEBERG SMOKE TEST RESULTS")
     print(f"{'='*60}")
     for p in passed:
         print(f"  {GREEN}✅ PASS{RESET}: {p}")

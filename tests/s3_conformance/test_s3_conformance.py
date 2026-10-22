@@ -16,8 +16,6 @@ The BLOCKING criterion (M1 gate) is:
 import os
 import sys
 import uuid
-import json
-import time
 import boto3
 import botocore
 import datetime
@@ -262,7 +260,7 @@ def test_per_identity_iam():
     c = s3()
     key = "conformance/iam_test.txt"
     c.put_object(Bucket=TEST_BUCKET, Key=key, Body=b"iam-test")
-    
+
     c_ro = boto3.client(
         "s3",
         endpoint_url=ENDPOINT,
@@ -276,12 +274,12 @@ def test_per_identity_iam():
             response_checksum_validation="when_required"
         ),
     )
-    
+
     try:
         # Should be able to read
         got = c_ro.get_object(Bucket=TEST_BUCKET, Key=key)["Body"].read()
         assert got == b"iam-test"
-        
+
         # Should NOT be able to write
         c_ro.put_object(Bucket=TEST_BUCKET, Key="conformance/iam_test_write.txt", Body=b"forbidden")
         raise AssertionError("Readonly user was able to write!")

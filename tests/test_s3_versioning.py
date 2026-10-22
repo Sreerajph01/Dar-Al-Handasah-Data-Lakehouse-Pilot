@@ -6,10 +6,10 @@ s3_endpoint = "http://seaweedfs-s3:8333"
 def test_versioning():
     bucket_name = f"test-versioning-{uuid.uuid4()}"
     client = boto3.client('s3', endpoint_url=s3_endpoint, aws_access_key_id='admin', aws_secret_access_key='admin', region_name='us-east-1')
-    
+
     print(f"Creating bucket {bucket_name}...")
     client.create_bucket(Bucket=bucket_name)
-    
+
     try:
         print("Enabling versioning...")
         client.put_bucket_versioning(

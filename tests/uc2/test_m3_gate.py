@@ -1,4 +1,9 @@
-import trino, psycopg2, requests, time, os, subprocess
+import trino
+import psycopg2
+import requests
+import time
+import os
+import subprocess
 
 TRINO_HOST = os.environ.get("TRINO_HOST_ACCESS", "dar-trino")
 TRINO_PORT = int(os.environ.get("TRINO_PORT", "8080"))
@@ -36,7 +41,7 @@ def run_dag(dag_id: str):
 def test_m3_gate():
     conn = get_trino_conn()
     cur = conn.cursor()
-    
+
     print("\n--- B5. Triggering Quality Gate & Transform DAG ---")
     try:
         run_dag("uc2_transform")
@@ -49,7 +54,7 @@ def test_m3_gate():
     normalized_budget = cur.fetchone()[0]
     print(f"Normalized total budget in Silver: {normalized_budget}")
     assert normalized_budget is not None, "fact_budget amount is empty"
-    
+
     print("\n--- A2. Gold Products ---")
     expected_models = ["project_summary", "budget_vs_actual", "timesheet_utilisation", "evm_metrics", "wbs_cost_rollup", "reconciliation"]
     for m in expected_models:
@@ -65,7 +70,7 @@ def test_m3_gate():
     cur.execute("SELECT source_total, gold_total, difference, is_within_tolerance FROM iceberg.gold.reconciliation LIMIT 1")
     row = cur.fetchone()
     print(f"Reconciliation result: {row}")
-    assert row[3] == True, "Gold does not reconcile with source within tolerance"
+    assert row[3] is True, "Gold does not reconcile with source within tolerance"
 
     print("\n--- A4. Silver Proofs ---")
     print("Quarantine validation:")
@@ -97,10 +102,10 @@ def test_m3_gate():
     print("\n--- C8. Backup & Restore Demo ---")
     print("Triggering 'make backup'")
     subprocess.run(["make", "backup"], cwd="/repo", check=False)
-    
+
     print("\n--- D9. OpenLineage Events ---")
     print("OpenLineage events emitted (simulated validation)")
-    
+
     print("\nM3 GATE VERIFIED SUCCESSFULLY!")
 
 if __name__ == "__main__":

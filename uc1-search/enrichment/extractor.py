@@ -11,10 +11,11 @@ Extracts structured text, technical metadata, and spatial/CAD attributes from:
 import os
 import io
 import re
-import json
 import hashlib
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
+from email import policy
+from email.parser import BytesParser
 import httpx
 
 logger = logging.getLogger("uc1.extractor")
@@ -40,10 +41,6 @@ try:
     HAS_EXTRACT_MSG = True
 except ImportError:
     HAS_EXTRACT_MSG = False
-
-import email
-from email import policy
-from email.parser import BytesParser
 
 
 class DocumentExtractor:
@@ -341,11 +338,23 @@ class DocumentExtractor:
         if path_meta["project_code"] != "DAR-GEN":
             allowed_roles.append(f"pm_{path_meta['project_code'].lower()}")
             allowed_roles.append(f"team_{path_meta['project_code'].lower()}")
+        else:
+            allowed_roles.append("all_staff")
         if path_meta["discipline"]:
             allowed_roles.append(f"eng_{path_meta['discipline'].lower()}")
-        if "spec" in filename.lower() or "public" in filename.lower() or "report" in filename.lower():
+        if "public" in filename.lower():
             allowed_roles.append("all_staff")
             allowed_roles.append("external_auditor")
+        elif "audit" in filename.lower():
+            allowed_roles.append("external_auditor")
+
+        is_tier_b = ext in [".dwg", ".rvt"]
+        file_tier = "B" if is_tier_b else "A"
+        metadata_only = is_tier_b
+
+        if is_tier_b:
+            # Metadata-only indexing for proprietary binary files (DWG/RVT)
+            content_text = ""
 
         return {
             "doc_id": hashlib.md5(file_path.encode()).hexdigest(),
@@ -355,6 +364,8 @@ class DocumentExtractor:
             "discipline": path_meta["discipline"],
             "doc_type": path_meta["doc_type"],
             "extension": ext,
+            "file_tier": file_tier,
+            "metadata_only": metadata_only,
             "file_size": len(content_bytes),
             "hash": self.compute_hash(content_bytes),
             "raw_content": content_text,

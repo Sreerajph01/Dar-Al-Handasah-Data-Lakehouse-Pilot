@@ -16,8 +16,6 @@ import subprocess
 import sys
 import json
 import pathlib
-import csv
-import io
 
 # ─── OSI-approved licences (allow list) ───────────────────────────────────────
 ALLOWED_SPDX = {

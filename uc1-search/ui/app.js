@@ -225,20 +225,29 @@ document.addEventListener('DOMContentLoaded', () => {
       let citationHtml = '';
       if (data.citations && data.citations.length > 0) {
         citationHtml = `
-          <div class="citation-list">
-            <strong>Source Citations:</strong>
+          <div class="citation-list" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 8px;">
+            <strong style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-cyan);">Verified Source Citations:</strong>
             ${data.citations.map(c => `
-              <div class="citation-item">📄 ${c.title} (${c.project_code} • ${c.discipline})</div>
+              <div class="citation-item" style="margin-top: 6px; padding: 6px 8px; background: rgba(255,255,255,0.03); border-radius: 4px; border-left: 2px solid var(--accent-blue);">
+                <div style="font-weight: 600; font-size: 0.82rem;">📄 ${c.title} <span style="opacity: 0.6; font-size: 0.75rem;">(${c.project_code} • ${c.discipline})</span></div>
+                ${c.snippet ? `<div style="font-size: 0.75rem; opacity: 0.85; margin-top: 3px; font-style: italic;">"${c.snippet}"</div>` : ''}
+              </div>
             `).join('')}
           </div>
         `;
       }
 
+      const isNoAnswer = data.answer.toLowerCase().includes("not found") || data.answer.toLowerCase().includes("no accessible");
+      const answerBadge = isNoAnswer 
+        ? `<div style="display:inline-block; font-size: 0.7rem; font-weight: 700; color: #ffb86c; background: rgba(255,184,108,0.15); border: 1px solid #ffb86c; border-radius: 3px; padding: 1px 6px; margin-bottom: 6px;">🛡️ HALLUCINATION GUARD ACTIVE</div><br>` 
+        : '';
+
       loadingMsg.innerHTML = `
-        <p>${data.answer.replace(/\n/g, '<br>')}</p>
+        ${answerBadge}
+        <p style="margin: 0; line-height: 1.5;">${data.answer.replace(/\n/g, '<br>')}</p>
         ${citationHtml}
-        <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 6px;">
-          Generated in ${data.latency_ms} ms via local Ollama
+        <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 8px;">
+          ⏱️ Generated in ${data.latency_ms} ms via local Ollama (Qwen2.5-7B)
         </div>
       `;
     } catch (err) {

@@ -23,12 +23,10 @@ Requires: pip install opensearch-py
 import os
 import sys
 import uuid
-import json
-import time
 import math
 import random
 import pathlib
-from opensearchpy import OpenSearch, RequestError, NotFoundError
+from opensearchpy import OpenSearch
 
 OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "http://localhost:9200")
 OPENSEARCH_USER = os.environ.get("OPENSEARCH_USER", "admin")
@@ -351,14 +349,14 @@ def _report(passed: list, failed: list, pipeline_created: bool):
             print(f"  • {name}: {err[:120]}")
     if not pipeline_created:
         print(f"\n{YELLOW}⚠  Hybrid pipeline fallback: application-side RRF used.{RESET}")
-        print(f"   See KNOWN_GAPS.md §G-knn-1. NOT a blocking M1 failure.")
+        print("   See KNOWN_GAPS.md §G-knn-1. NOT a blocking M1 failure.")
     if failed:
         print(f"\n{RED}❌ OpenSearch k-NN test FAILED{RESET}")
         sys.exit(1)
     else:
         print(f"\n{GREEN}✅ OpenSearch k-NN + Hybrid test PASSED{RESET}")
         if not pipeline_created:
-            print(f"   (with application-side RRF; see KNOWN_GAPS G-knn-1)")
+            print("   (with application-side RRF; see KNOWN_GAPS G-knn-1)")
         sys.exit(0)
 
 

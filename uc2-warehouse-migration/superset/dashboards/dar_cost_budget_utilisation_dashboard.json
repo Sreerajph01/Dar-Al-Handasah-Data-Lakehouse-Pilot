@@ -1,0 +1,52 @@
+{
+  "dashboard_title": "Dar Al-Handasah — Cost Variance & Resource Utilisation",
+  "description": "Operational engineering dashboard tracking Cost Variance (CV), Schedule Variance (SV), Timesheet Resource Utilisation, and Budget Burndown across disciplines.",
+  "css": "",
+  "slug": "dar-cost-utilisation",
+  "certified_by": "Dar Lakehouse Operations & Controls",
+  "certification_details": "Derived from Iceberg Silver Conformed Timesheets and Gold EVM",
+  "metadata": {
+    "timed_refresh_immune_slices": [],
+    "expanded_slices": {},
+    "refresh_frequency": 300,
+    "default_filters": "{}",
+    "color_scheme": "d3Category10"
+  },
+  "slices": [
+    {
+      "slice_name": "Cost Variance (CV) & Schedule Variance (SV) by Project",
+      "viz_type": "bar",
+      "datasource": "iceberg.gold.evm_metrics",
+      "params": {
+        "groupby": ["project_id"],
+        "metrics": [
+          {"label": "Cost Variance CV ($)", "expressionType": "SQL", "sqlExpression": "SUM(cv)"},
+          {"label": "Schedule Variance SV ($)", "expressionType": "SQL", "sqlExpression": "SUM(sv)"}
+        ]
+      }
+    },
+    {
+      "slice_name": "Resource Billable Hours & Utilisation",
+      "viz_type": "table",
+      "datasource": "iceberg.silver.fact_timesheet",
+      "params": {
+        "groupby": ["project_id", "wbs_id"],
+        "metrics": [
+          {"label": "Total Regular Hours", "expressionType": "SQL", "sqlExpression": "SUM(hours_regular)"},
+          {"label": "Total Overtime Hours", "expressionType": "SQL", "sqlExpression": "SUM(hours_overtime)"}
+        ]
+      }
+    },
+    {
+      "slice_name": "Budget Allocation by Discipline & Currency",
+      "viz_type": "pie",
+      "datasource": "iceberg.silver.fact_budget",
+      "params": {
+        "groupby": ["currency"],
+        "metrics": [
+          {"label": "Total Budget Amount", "expressionType": "SQL", "sqlExpression": "SUM(amount)"}
+        ]
+      }
+    }
+  ]
+}

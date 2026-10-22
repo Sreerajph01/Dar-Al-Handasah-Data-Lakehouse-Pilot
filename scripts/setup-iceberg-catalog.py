@@ -4,7 +4,11 @@ scripts/setup-iceberg-catalog.py
 Creates Lakekeeper warehouse + Iceberg namespaces for bronze/silver/gold
 in each environment namespace. Idempotent (409 = already exists = OK).
 """
-import os, sys, json, urllib.request, urllib.error
+import os
+import sys
+import json
+import urllib.request
+import urllib.error
 
 LAKEKEEPER_URL = os.environ.get("LAKEKEEPER_CATALOG_URI", "http://lakekeeper:8181")
 S3_ENDPOINT    = os.environ.get("S3_ENDPOINT",    "http://seaweedfs-s3:8333")
@@ -110,10 +114,9 @@ def main():
         # Lakekeeper's create payload uses ``warehouse-name``, but its list
         # response (v0.13.6) returns the field as ``name``.  Accept both so
         # a second seed resolves the existing warehouse instead of aborting.
-        existing_names = {warehouse_name(w) for w in existing.get("warehouses", [])}
+        {warehouse_name(w) for w in existing.get("warehouses", [])}
     except Exception as e:
         print(f"WARN: Could not list warehouses: {e}")
-        existing_names = set()
 
     # 2. Create warehouses (idempotent – 409 = already exists = OK)
     warehouse_id = None

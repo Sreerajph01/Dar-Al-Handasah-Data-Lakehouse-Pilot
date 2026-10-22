@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: reconciliation
+    description: "Financial reconciliation audit between PostgreSQL DW source and Iceberg Gold target."
+    columns:
+      - name: source_total
+        description: "Total budget amount from PostgreSQL DW including valid USD-converted rows and quarantined rows."
+        tests:
+          - not_null
+      - name: gold_total
+        description: "Total budget amount loaded into Gold budget_vs_actual."
+        tests:
+          - not_null
+      - name: quarantine_total
+        description: "Total budget amount quarantined due to data quality or unmapped currency."
+        tests:
+          - not_null
+      - name: reconciled_total
+        description: "Sum of gold_total and quarantine_total."
+        tests:
+          - not_null
+      - name: difference
+        description: "Absolute variance between source and reconciled total. Must be 0 or < 0.01."
+        tests:
+          - not_null
+      - name: is_within_tolerance
+        description: "Boolean flag proving reconciliation passes financial threshold."
+        tests:
+          - not_null
+
+  - name: budget_vs_actual
+    description: "Gold aggregate table comparing budget amounts by WBS."
+    columns:
+      - name: wbs_id
+        description: "Work Breakdown Structure element ID."
+        tests:
+          - not_null
+          - unique
+      - name: total_budget
+        description: "Total budget amount in USD."
+        tests:
+          - not_null
+
+  - name: evm_metrics
+    description: "Gold Earned Value Management metrics per project and date."
+    columns:
+      - name: project_id
+        tests:
+          - not_null
+      - name: cpi
+        tests:
+          - not_null
+      - name: spi
+        tests:
+          - not_null

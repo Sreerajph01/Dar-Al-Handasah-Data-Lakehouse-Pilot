@@ -382,7 +382,8 @@ services:
       - airflow-logs:/opt/airflow/logs
       - ./uc1-search/dags:/opt/airflow/dags/uc1:ro
       - ./uc2-warehouse-migration/dags:/opt/airflow/dags/uc2:ro
-      - ./uc2-warehouse-migration/ingestion/dlt_pipelines:/opt/airflow/dags/ingestion/dlt_pipelines:ro
+      - ./uc2-warehouse-migration/ingestion:/opt/airflow/dags/ingestion:ro
+      - .:/repo:ro
     ports:
       - "${AIRFLOW_PORT:-8079}:8080"
     depends_on:
@@ -413,7 +414,8 @@ services:
       - airflow-logs:/opt/airflow/logs
       - ./uc1-search/dags:/opt/airflow/dags/uc1:ro
       - ./uc2-warehouse-migration/dags:/opt/airflow/dags/uc2:ro
-      - ./uc2-warehouse-migration/ingestion/dlt_pipelines:/opt/airflow/dags/ingestion/dlt_pipelines:ro
+      - ./uc2-warehouse-migration/ingestion:/opt/airflow/dags/ingestion:ro
+      - .:/repo:ro
     depends_on:
       airflow-init:
         condition: service_completed_successfully
@@ -575,7 +577,8 @@ services:
     entrypoint: >
       sh -c "
         ollama pull ${OLLAMA_LLM_MODEL:-qwen2.5:7b-instruct-q4_K_M} &&
-        ollama pull ${OLLAMA_EMBED_MODEL:-nomic-embed-text:1.5}
+        ollama pull nomic-embed-text &&
+        ollama cp nomic-embed-text nomic-embed-text:1.5 || true
       "
     environment:
       OLLAMA_HOST: "http://ollama:11434"

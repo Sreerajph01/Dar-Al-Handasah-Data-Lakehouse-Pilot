@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-import json, os, time, requests, trino, subprocess, psycopg2
+import json
+import os
+import time
+import requests
+import trino
+import subprocess
+import psycopg2
 
 TRINO_HOST = os.environ.get("TRINO_HOST_ACCESS", "dar-trino")
 TRINO_PORT = int(os.environ.get("TRINO_PORT", "8080"))
@@ -85,10 +91,10 @@ def test_m2_gate():
     pg_cur = pg.cursor()
 
     run_dag("uc2_full_load")
-    
+
     print("\n--- 4a. Full Load Validation ---")
     pg_tables = ["dim_calendar", "dim_project", "dim_wbs", "dim_employee", "dim_cost_code", "fact_budget", "fact_timesheet", "fact_cost_actuals", "fact_evm_snapshot"]
-    
+
     for pt in pg_tables:
         bronze_table = f"pg_{pt}"
         pg_cur.execute(f"SELECT count(*) FROM warehouse.{pt}")
@@ -110,7 +116,7 @@ def test_m2_gate():
             print(f"Table {bronze_table}: latest active={bronze_active}, source active={active_source}; latest D={bronze_deleted}, source deleted={deleted_source}")
             assert bronze_active == active_source, f"{bronze_table}: active latest-state count differs from source"
             assert bronze_deleted == deleted_source, f"{bronze_table}: delete markers differ from source"
-    
+
     pg_cur.execute("SELECT sum(budget_amount) FROM warehouse.fact_budget WHERE is_deleted = FALSE")
     pg_sum = pg_cur.fetchone()[0]
     cur.execute('SELECT SUM(CAST("budget_amount" AS DECIMAL(15,2))) FROM (SELECT *, row_number() OVER (PARTITION BY "budget_id" ORDER BY "_ingested_at" DESC) as rn FROM iceberg.bronze.pg_fact_budget) WHERE rn = 1 AND "_op" != \'D\'')
@@ -135,12 +141,12 @@ def test_m2_gate():
     for table, key_col, key in delete_cases:
         cur.execute(f'SELECT COUNT(*) FROM iceberg.bronze."{table}" WHERE "{key_col}" = ? AND "_op" = \'D\'', (key,))
         delete_baselines[(table, key)] = cur.fetchone()[0]
-    
+
     print("\n--- Running simulate_day.py ---")
     subprocess.run(["python", "data-gen/uc2/simulate_day.py"], check=True)
-    
+
     run_dag("uc2_incremental")
-    
+
     inc_total = get_table_counts(cur)
     print("\n--- 4b. Incremental Validation (Rows appended per table exactly match source changes) ---")
     appended = 0
@@ -162,7 +168,7 @@ def test_m2_gate():
             f'FROM iceberg.bronze."{table}" WHERE "{key_col}" = ?) WHERE rn = 1', (key,)
         )
         assert cur.fetchone()[0] == "D", f"{table} key={key}: latest Bronze version is not a delete marker"
-    
+
     run_dag("uc2_incremental")
     final_total = get_table_counts(cur)
     print("\n--- 4c. Idempotent incremental run with no new changes ---")

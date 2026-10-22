@@ -36,7 +36,7 @@ The historical `s3-proxy` container was a raw TCP forwarder to `dar-seaweedfs-s3
 | 10 | Identity / SSO | **Keycloak** | `quay.io/keycloak/keycloak` | `26.0.7` | Apache-2.0 | ✅ | 8444 | 768 MB |
 | 11 | Access control | **OPA** | `openpolicyagent/opa` | `0.68.0` | Apache-2.0 | ✅ | 8282 | 64 MB |
 | 12 | Orchestration | **Apache Airflow** | `apache/airflow` | `2.10.2` | Apache-2.0 | ✅ | 8079 | 1.5 GB |
-| 13 | Connector layer | **dlt** | pip `dlt` | `0.5.4` | Apache-2.0 | ✅ | — | — |
+| 13 | Connector layer (default) | **Bronze Loader / dlt** | `dlt` / custom bronze loader | `0.5.4` | Apache-2.0 | ✅ | — | — |
 | 14 | Search / vector | **OpenSearch** | `opensearchproject/opensearch` | `3.3.2` | Apache-2.0 | ✅ | 9200, 9300 | 1.5 GB |
 | 15 | Search dashboards | **OpenSearch Dashboards** | `opensearchproject/opensearch-dashboards` | `3.3.0` | Apache-2.0 | ✅ | 5601 | 512 MB |
 | 16 | LLM + embeddings | **Ollama** | `ollama/ollama` | `0.3.14` | MIT | ✅ | 11434 | 4 GB* |
@@ -118,7 +118,7 @@ The historical `s3-proxy` container was a raw TCP forwarder to `dar-seaweedfs-s3
 | Profile | Tools | Licence class | Added RAM | Notes |
 |---|---|---|---|---|
 | `opt-licensed-sqlserver` | SQL Server 2022 Developer | **Non-OSI** (EULA) | +1.5 GB | Non-production use only |
-| `opt-airbyte` | Airbyte self-managed | **Non-OSI** (ELv2) | +3 GB | Needs K8s or compose mode |
+| `opt-airbyte` | Airbyte self-managed | **Non-OSI** (ELv2) | +3 GB | Compose stack (`docker-compose.airbyte.yml`) on port 8006 |
 | `opt-streaming` | Kafka (KRaft) + Debezium | OSS-heavy (Apache-2.0) | +3 GB | CDC streaming |
 | `opt-ranger` | Apache Ranger | OSS-heavy (Apache-2.0) | +1 GB | GUI-driven RBAC |
 | `opt-gitlab` | GitLab CE + Runner | OSS-heavy (MIT CE) | +3 GB | Alternative to Gitea |

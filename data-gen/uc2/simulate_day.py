@@ -28,7 +28,6 @@ Run from WSL2:
 import json
 import os
 import random
-import sys
 from datetime import date, datetime, timedelta
 
 import psycopg2
@@ -110,7 +109,7 @@ def simulate_postgres():
         SET hours = hours + 1, modified_at = %s, row_version = row_version + 1
         WHERE timesheet_id = (SELECT MIN(timesheet_id) FROM warehouse.fact_timesheet)
     """, (now,))
-    print(f"  Updated 1 timesheet row (CDC history generation)")
+    print("  Updated 1 timesheet row (CDC history generation)")
 
     # --- 2. UPDATE dim_employee row 1 (role promotion) ---
     cur.execute("""
@@ -118,7 +117,7 @@ def simulate_postgres():
         SET role = 'Principal Engineer', modified_at = %s, row_version = row_version + 1
         WHERE employee_id = 1
     """, (now,))
-    print(f"  Updated dim_employee id=1 (role → Principal Engineer)")
+    print("  Updated dim_employee id=1 (role → Principal Engineer)")
 
     # --- 3. Soft-DELETE dim_employee row 2 ---
     cur.execute("""

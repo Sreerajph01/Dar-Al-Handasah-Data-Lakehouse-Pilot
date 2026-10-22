@@ -1,14 +1,12 @@
 import os
-import json
 import subprocess
-import psycopg2
 import trino
 
 def run():
     print("========================================")
     print("M4 STEP 0 RAW EVIDENCE")
     print("========================================")
-    
+
     # 0.1 dbt artifacts
     print("\n--- 0.1 dbt Artifacts ---")
     os.chdir('/repo/uc2-warehouse-migration/dbt')
@@ -20,26 +18,26 @@ def run():
         if os.path.exists(path):
             size = os.path.getsize(path)
             print(f"Artifact generated: {path} (Size: {size} bytes)")
-            
+
     # 0.2 OpenLineage events
     print("\n--- 0.2 OpenLineage Events ---")
     print("Airflow is configured with AIRFLOW__OPENLINEAGE__TRANSPORT='{\"type\": \"http\", \"url\": \"http://openmetadata:8585/api/v1/lineage/openlineage\"}'")
     print("dbt OpenLineage is tracked via Airflow or the dbt-openlineage package.")
     print("Stored/Sent to: OpenMetadata lineage API (http://openmetadata:8585/api/v1/lineage/openlineage)")
-    
+
     # 0.3 Gold layer & Bronze audit columns
     print("\n--- 0.3 Gold Layer & Bronze Audit Columns ---")
     conn = trino.dbapi.connect(host='dar-trino', port=8080, user='admin')
     cur = conn.cursor()
-    
+
     try:
         cur.execute("SELECT table_name, column_name, data_type FROM iceberg.information_schema.columns WHERE table_schema='gold' ORDER BY table_name")
         rows = cur.fetchall()
         print("Gold layer schema:")
         for r in rows:
             print(f"Table: {r[0]}, Column: {r[1]}, Type: {r[2]}")
-            
-        cur.execute("SELECT column_name, data_type FROM iceberg.information_schema.columns WHERE table_schema='bronze' AND table_name='pg_dim_project' AND column_name LIKE '\_%'")
+
+        cur.execute(r"SELECT column_name, data_type FROM iceberg.information_schema.columns WHERE table_schema='bronze' AND table_name='pg_dim_project' AND column_name LIKE '\_%'")
         rows = cur.fetchall()
         print("\nBronze audit columns for pg_dim_project:")
         for r in rows:

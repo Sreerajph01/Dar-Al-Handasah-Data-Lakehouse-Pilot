@@ -1,0 +1,62 @@
+# =============================================================================
+# docker-compose.airbyte.yml — Airbyte Ingestion Service (Self-Managed Profile)
+# Profile: opt-airbyte
+# =============================================================================
+
+services:
+
+  # ─── Airbyte Server & API / Web UI ──────────────────────────────────────────
+  airbyte-server:
+    image: airbyte/server:${AIRBYTE_VERSION:-1.8.0}
+    container_name: dar-airbyte-server
+    restart: unless-stopped
+    profiles:
+      - opt-airbyte
+    environment:
+      AIRBYTE_VERSION: ${AIRBYTE_VERSION:-1.8.0}
+      DATABASE_USER: ${OM_DB_USER:-openmetadata}
+      DATABASE_PASSWORD: ${OM_DB_PASSWORD:-9k5gr-RD0auH0v7VEdm8qw}
+      DATABASE_HOST: postgres-meta
+      DATABASE_PORT: "5432"
+      DATABASE_DB: airbyte_db
+      INTERNAL_API_HOST: airbyte-server:8001
+      MICRONAUT_ENVIRONMENTS: docker
+      API_URL: /api/v1/
+    ports:
+      - "${AIRBYTE_PORT:-8006}:8001"
+    depends_on:
+      postgres-meta:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/v1/health || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 120s
+    networks:
+      - lakehouse-net
+
+  # ─── Airbyte Worker ────────────────────────────────────────────────────────
+  airbyte-worker:
+    image: airbyte/worker:${AIRBYTE_VERSION:-1.8.0}
+    container_name: dar-airbyte-worker
+    restart: unless-stopped
+    profiles:
+      - opt-airbyte
+    environment:
+      AIRBYTE_VERSION: ${AIRBYTE_VERSION:-1.8.0}
+      DATABASE_USER: ${OM_DB_USER:-openmetadata}
+      DATABASE_PASSWORD: ${OM_DB_PASSWORD:-9k5gr-RD0auH0v7VEdm8qw}
+      DATABASE_HOST: postgres-meta
+      DATABASE_PORT: "5432"
+      DATABASE_DB: airbyte_db
+      INTERNAL_API_HOST: airbyte-server:8001
+      MICRONAUT_ENVIRONMENTS: docker
+    depends_on:
+      - airbyte-server
+    networks:
+      - lakehouse-net
+
+networks:
+  lakehouse-net:
+    name: dar-lakehouse_default
